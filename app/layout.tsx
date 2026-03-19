@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import { DM_Sans, DM_Serif_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { AuthProvider } from '@/components/auth-provider-wrapper'
 import './globals.css'
 
-const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' })
+const dmSans  = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' })
 const dmSerif = DM_Serif_Display({ weight: '400', subsets: ['latin'], variable: '--font-dm-serif' })
 
 export const metadata: Metadata = {
@@ -21,13 +22,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${dmSerif.variable}`}>
-      <body className="font-sans antialiased">
-        {children}
+    <html lang="en" suppressHydrationWarning className={`${dmSans.variable} ${dmSerif.variable}`}>
+      <body className="font-sans antialiased" suppressHydrationWarning>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
         <Analytics />
       </body>
     </html>
