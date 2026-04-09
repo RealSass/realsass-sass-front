@@ -43,12 +43,15 @@ The content is organized as follows:
 .env.local.example
 .gitignore
 app/globals.css
+app/invite/[token]/page.tsx
 app/layout.tsx
 app/page.tsx
 app/profile/page.tsx
+app/settings/api-keys/page.tsx
 components.json
 components/auth-provider-wrapper.tsx
 components/bottom-tab-bar.tsx
+components/collaborators-section.tsx
 components/cta-band.tsx
 components/features-section.tsx
 components/footer.tsx
@@ -168,704 +171,6 @@ NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abc123
 # En producción reemplazar con la URL del servidor
 # ════════════════════════════════════════════════════
 NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
-</file>
-
-<file path="app/profile/page.tsx">
-'use client'
-
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import {
-  Building2, Check, X, Loader2, ShieldCheck,
-  AlertCircle, LogIn,
-} from 'lucide-react'
-import { useAuth } from '@/context/auth-context'
-import { InvitationInfo } from '@/lib/types'
-import { acceptInvitation, getInvitationInfo } from '@/lib/api'
-
-const PERMISSION_LABELS: Record<string, string> = {
-  canViewListings:        'Ver propiedades',
-  canCreateListings:      'Crear propiedades',
-  canEditListings:        'Editar propiedades',
-  canDeleteListings:      'Eliminar propiedades',
-  canViewStats:           'Ver estadísticas',
-  canManageLeads:         'Gestionar clientes',
-  canManageCollaborators: 'Gestionar colaboradores',
-}
-
-export default function InvitePage() {
-  const params   = useParams()
-  const router   = useRouter()
-  const token    = params?.token as string
-  const { firebaseUser, loading: authLoading } = useAuth()
-
-  const [info, setInfo]         = useState<InvitationInfo | null>(null)
-  const [loadingInfo, setLoadingInfo] = useState(true)
-  const [accepting, setAccepting]   = useState(false)
-  const [accepted, setAccepted]     = useState(false)
-  const [error, setError]           = useState<string | null>(null)
-
-  // Cargar info de la invitación (ruta pública)
-  useEffect(() => {
-    if (!token) return
-    setLoadingInfo(true)
-    getInvitationInfo(token)
-      .then(res => setInfo(res.data))
-      .catch(e => setError(e.message ?? 'Invitación inválida o expirada'))
-      .finally(() => setLoadingInfo(false))
-  }, [token])
-
-  const handleAccept = async () => {
-    if (!firebaseUser) return
-    setAccepting(true)
-    setError(null)
-    try {
-      await acceptInvitation(token)
-      setAccepted(true)
-      setTimeout(() => router.push('/profile'), 2500)
-    } catch (e: any) {
-      setError(e.message ?? 'Error al aceptar la invitación')
-    } finally {
-      setAccepting(false)
-    }
-  }
-
-  const activePerms = info
-    ? Object.entries(info.permissions).filter(([, v]) => v).map(([k]) => PERMISSION_LABELS[k] ?? k)
-    : []
-
-  // ── Loading ──────────────────────────────────────────────────────────────────
-  if (loadingInfo || authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="size-8 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  // ── Error (invitación inválida/expirada) ─────────────────────────────────────
-  if (error && !info) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mx-auto max-w-sm w-full rounded-3xl border border-border bg-card p-8 text-center shadow-xl"
-        >
-          <div className="flex size-14 items-center justify-center rounded-2xl bg-destructive/10 mx-auto">
-            <X className="size-7 text-destructive" />
-          </div>
-          <h1 className="mt-4 font-serif text-xl text-foreground">Invitación no válida</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{error}</p>
-          <button onClick={() => router.push('/')}
-            className="mt-6 flex h-11 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all">
-            Volver al inicio
-          </button>
-        </motion.div>
-      </div>
-    )
-  }
-
-  // ── Aceptada con éxito ───────────────────────────────────────────────────────
-  if (accepted) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="mx-auto max-w-sm w-full rounded-3xl border border-emerald-200 bg-card p-8 text-center shadow-xl"
-        >
-          <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-100 mx-auto">
-            <Check className="size-7 text-emerald-600" />
-          </div>
-          <h1 className="mt-4 font-serif text-xl text-foreground">¡Bienvenido al equipo!</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Ya sos colaborador de <strong>{info?.organization.name ?? 'la organización'}</strong>. Redirigiendo…
-          </p>
-          <Loader2 className="mt-4 size-5 animate-spin text-muted-foreground mx-auto" />
-        </motion.div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        className="mx-auto max-w-sm w-full space-y-5"
-      >
-        {/* Card principal */}
-        <div className="rounded-3xl border border-border bg-card p-7 shadow-xl">
-          {/* Logo org */}
-          <div className="flex justify-center mb-5">
-            {info?.organization.logoUrl ? (
-              <img src={info.organization.logoUrl} alt="Logo"
-                className="size-16 rounded-2xl border border-border object-cover" />
-            ) : (
-              <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10">
-                <Building2 className="size-8 text-primary" />
-              </div>
-            )}
-          </div>
-
-          <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Invitación a colaborar</p>
-            <h1 className="mt-2 font-serif text-2xl text-foreground">
-              {info?.organization.name ?? 'Una organización'}
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Te invitaron a unirte como colaborador con los siguientes permisos:
-            </p>
-          </div>
-
-          {/* Permisos */}
-          {activePerms.length > 0 && (
-            <div className="mt-5 rounded-2xl border border-border bg-secondary/30 p-4 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                <ShieldCheck className="size-3.5" /> Tus permisos
-              </p>
-              {activePerms.map(p => (
-                <div key={p} className="flex items-center gap-2 text-sm text-foreground">
-                  <Check className="size-3.5 shrink-0 text-primary" /> {p}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Email al que fue invitado */}
-          <div className="mt-4 rounded-xl border border-border bg-secondary/30 px-3 py-2.5 text-center">
-            <p className="text-xs text-muted-foreground">Invitación para</p>
-            <p className="text-sm font-medium text-foreground mt-0.5">{info?.email}</p>
-          </div>
-        </div>
-
-        {/* Acción según estado de auth */}
-        {!firebaseUser ? (
-          // No está logueado
-          <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="size-4 shrink-0 text-amber-500 mt-0.5" />
-              <p className="text-sm text-muted-foreground">
-                Para aceptar la invitación necesitás iniciar sesión con{' '}
-                <strong className="text-foreground">{info?.email}</strong>.
-              </p>
-            </div>
-            <button
-              onClick={() => router.push(`/?invite=${token}`)}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all"
-            >
-              <LogIn className="size-4" /> Iniciar sesión para aceptar
-            </button>
-          </div>
-        ) : firebaseUser.email?.toLowerCase() !== info?.email.toLowerCase() ? (
-          // Logueado con otra cuenta
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-5 space-y-3">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="size-4 shrink-0 text-destructive mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Cuenta incorrecta</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Estás logueado como <strong>{firebaseUser.email}</strong> pero la invitación es para{' '}
-                  <strong>{info?.email}</strong>. Cerrá sesión y volvé a intentar.
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          // Logueado con la cuenta correcta — puede aceptar
-          <div className="space-y-3">
-            {error && (
-              <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
-                <AlertCircle className="size-4 shrink-0 text-destructive" />
-                <p className="text-sm text-destructive">{error}</p>
-              </div>
-            )}
-            <button
-              onClick={handleAccept}
-              disabled={accepting}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all shadow-lg shadow-primary/20"
-            >
-              {accepting
-                ? <><Loader2 className="size-5 animate-spin" /> Aceptando…</>
-                : <><Check className="size-5" /> Aceptar invitación</>
-              }
-            </button>
-            <p className="text-center text-xs text-muted-foreground">
-              Logueado como <strong>{firebaseUser.email}</strong>
-            </p>
-          </div>
-        )}
-      </motion.div>
-    </div>
-  )
-}
-</file>
-
-<file path="components/auth-provider-wrapper.tsx">
-'use client'
-
-import { Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { AuthProvider as BaseAuthProvider } from '@/context/auth-context'
-import type { ReactNode } from 'react'
-
-function AuthProviderInner({ children }: { children: ReactNode }) {
-  const searchParams = useSearchParams()
-  const refCode = searchParams?.get('ref') ?? undefined
-  return <BaseAuthProvider refCode={refCode}>{children}</BaseAuthProvider>
-}
-
-// Suspense es obligatorio porque useSearchParams requiere un boundary
-export function AuthProvider({ children }: { children: ReactNode }) {
-  return (
-    <Suspense fallback={null}>
-      <AuthProviderInner>{children}</AuthProviderInner>
-    </Suspense>
-  )
-}
-</file>
-
-<file path="context/auth-context.tsx">
-'use client'
-
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from 'react'
-import { auth, onAuthStateChanged, signOut, type User } from '@/lib/firebase'
-import { syncUser, getMe, type UserProfile } from '@/lib/api'
-
-interface AuthContextValue {
-  firebaseUser: User | null
-  profile: UserProfile | null
-  loading: boolean
-  busy: boolean
-  refreshProfile: () => Promise<void>
-  logout: () => Promise<void>
-}
-
-const defaultValue: AuthContextValue = {
-  firebaseUser:   null,
-  profile:        null,
-  loading:        true,
-  busy:           false,
-  refreshProfile: async () => {},
-  logout:         async () => {},
-}
-
-const AuthContext = createContext<AuthContextValue>(defaultValue)
-
-export function useAuth(): AuthContextValue {
-  return useContext(AuthContext)
-}
-
-interface AuthProviderProps {
-  children: ReactNode
-  refCode?: string
-}
-
-export function AuthProvider({ children, refCode }: AuthProviderProps) {
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null)
-  const [profile, setProfile]           = useState<UserProfile | null>(null)
-  const [loading, setLoading]           = useState(true)
-  const [busy, setBusy]                 = useState(false)
-
-  const refreshProfile = useCallback(async () => {
-    try {
-      const res = await getMe()
-      setProfile(res.data)
-    } catch {
-      setProfile(null)
-    }
-  }, [])
-
-  const logout = useCallback(async () => {
-    await signOut()
-    setProfile(null)
-  }, [])
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user)
-
-      if (user) {
-        setBusy(true)
-        try {
-          const res = await syncUser(refCode)
-          setProfile(res.data)
-        } catch {
-          await refreshProfile()
-        } finally {
-          setBusy(false)
-        }
-      } else {
-        setProfile(null)
-      }
-
-      setLoading(false)
-    })
-
-    return unsubscribe
-  }, [refCode, refreshProfile])
-
-  return (
-    <AuthContext.Provider
-      value={{ firebaseUser, profile, loading, busy, refreshProfile, logout }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
-}
-</file>
-
-<file path="lib/api.ts">
-// lib/api.ts
-// ─── Cliente HTTP base + endpoints de Auth, Users, Organizations, Affiliates ──
-import { getIdToken } from '@/lib/firebase'
-import type {
-  UserProfile,
-  Organization,
-  AffiliateReferral,
-  Collaborator,
-  InvitationInfo,
-  InviteCollaboratorPayload,
-  CollaboratorPermissions,
-} from '@/lib/types'
-
- 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
-
-// ─── Fetch helpers ────────────────────────────────────────────────────────────
-
-/** Petición autenticada — adjunta el Bearer token de Firebase */
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const token = await getIdToken()
-
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  })
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error(error?.message ?? `Error ${res.status}`)
-  }
-
-  return res.json() as Promise<T>
-}
-
-/** Petición pública — sin token (para rutas como GET /invitations/:token) */
-export async function apiFetchPublic<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-  })
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error(error?.message ?? `Error ${res.status}`)
-  }
-
-  return res.json() as Promise<T>
-}
-
-// ─── Auth ─────────────────────────────────────────────────────────────────────
-
-/** POST /auth/sync — sincroniza el usuario con la DB.
- *  Pasar refCode si viene de un link de afiliado (?ref=). */
-export async function syncUser(refCode?: string) {
-  const qs = refCode ? `?ref=${encodeURIComponent(refCode)}` : ''
-  return apiFetch<{ success: boolean; isNew: boolean; data: UserProfile }>(
-    `/auth/sync${qs}`,
-    { method: 'POST' },
-  )
-}
-
-// ─── Users ────────────────────────────────────────────────────────────────────
-
-/** GET /users/me */
-export async function getMe() {
-  return apiFetch<{ success: boolean; data: UserProfile }>('/users/me')
-}
-
-/** PATCH /users/select-role */
-export async function selectRole(role: 'owner' | 'affiliate') {
-  return apiFetch<{ success: boolean; message: string; data: UserProfile }>(
-    '/users/select-role',
-    { method: 'PATCH', body: JSON.stringify({ role }) },
-  )
-}
-
-// ─── Organizations ────────────────────────────────────────────────────────────
-
-/** GET /organizations/me */
-export async function getMyOrganization() {
-  return apiFetch<{ success: boolean; data: Organization }>('/organizations/me')
-}
-
-/** PATCH /organizations/me */
-export async function updateMyOrganization(
-  data: Partial<Omit<Organization, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>,
-) {
-  return apiFetch<{ success: boolean; message: string; data: Organization }>(
-    '/organizations/me',
-    { method: 'PATCH', body: JSON.stringify(data) },
-  )
-}
-
-// ─── Affiliates ───────────────────────────────────────────────────────────────
-
-/** GET /affiliates/me */
-export async function getMyAffiliateProfile() {
-  return apiFetch<{
-    success: boolean
-    data: {
-      affiliateCode: string
-      balance: string
-      referralCount: number
-      createdAt: string
-    }
-  }>('/affiliates/me')
-}
-
-/** GET /affiliates/me/referrals */
-export async function getMyReferrals() {
-  return apiFetch<{
-    success: boolean
-    data: {
-      affiliateCode: string
-      total: number
-      referrals: AffiliateReferral[]
-    }
-  }>('/affiliates/me/referrals')
-}
- 
-// ─── Collaborators (owner) ────────────────────────────────────────────────────
- 
-/** GET /organizations/me/collaborators */
-export async function listCollaborators() {
-  return apiFetch<{ success: boolean; data: Collaborator[] }>(
-    '/organizations/me/collaborators',
-  )
-}
- 
-/** POST /organizations/me/collaborators — invita por email y genera link */
-export async function inviteCollaborator(payload: InviteCollaboratorPayload) {
-  return apiFetch<{
-    success: boolean
-    message: string
-    data: {
-      collaborator: Collaborator
-      inviteLink: string
-      expiresAt: string
-    }
-  }>('/organizations/me/collaborators', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-}
- 
-/** PATCH /organizations/me/collaborators/:id — actualiza permisos */
-export async function updateCollaboratorPermissions(
-  collaboratorId: string,
-  permissions: Partial<CollaboratorPermissions>,
-) {
-  return apiFetch<{ success: boolean; message: string; data: Collaborator }>(
-    `/organizations/me/collaborators/${collaboratorId}`,
-    { method: 'PATCH', body: JSON.stringify(permissions) },
-  )
-}
- 
-/** DELETE /organizations/me/collaborators/:id — remueve colaborador */
-export async function removeCollaborator(collaboratorId: string) {
-  return apiFetch<{ success: boolean; message: string }>(
-    `/organizations/me/collaborators/${collaboratorId}`,
-    { method: 'DELETE' },
-  )
-}
- 
-// ─── Invitations (colaborador) ────────────────────────────────────────────────
- 
-/** GET /invitations/:token — info pública de la invitación (sin auth) */
-export async function getInvitationInfo(token: string) {
-  return apiFetchPublic<{ success: boolean; data: InvitationInfo }>(
-    `/invitations/${token}`,
-  )
-}
- 
-/** POST /invitations/:token/accept — el colaborador logueado acepta */
-export async function acceptInvitation(token: string) {
-  return apiFetch<{ success: boolean; message: string }>(
-    `/invitations/${token}/accept`,
-    { method: 'POST' },
-  )
-}
-</file>
-
-<file path="lib/firebase.ts">
-import { initializeApp, getApps, getApp } from 'firebase/app'
-import {
-  getAuth,
-  GoogleAuthProvider,
-  OAuthProvider,
-  FacebookAuthProvider,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  type User,
-} from 'firebase/auth'
-
-// ⚠️  Completar con tus credenciales de Firebase Console →
-// Project Settings → General → Your apps → Web app → Config
-const firebaseConfig = {
-  apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-  authDomain:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId:         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket:     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-}
-
-// Singleton — evita reinicializar en HMR
-const app  = getApps().length ? getApp() : initializeApp(firebaseConfig)
-const auth = getAuth(app)
-
-// Providers
-const googleProvider   = new GoogleAuthProvider()
-const appleProvider    = new OAuthProvider('apple.com')
-const facebookProvider = new FacebookAuthProvider()
-
-appleProvider.addScope('email')
-appleProvider.addScope('name')
-
-// ─── Helpers de auth ─────────────────────────────────────────────────────────
-
-export async function signInWithGoogle() {
-  return signInWithPopup(auth, googleProvider)
-}
-
-export async function signInWithApple() {
-  return signInWithPopup(auth, appleProvider)
-}
-
-export async function signInWithFacebook() {
-  return signInWithPopup(auth, facebookProvider)
-}
-
-export async function signOut() {
-  return firebaseSignOut(auth)
-}
-
-export function getIdToken(forceRefresh = false): Promise<string> {
-  if (!auth.currentUser) throw new Error('No hay usuario autenticado')
-  return auth.currentUser.getIdToken(forceRefresh)
-}
-
-export { auth, onAuthStateChanged, type User }
-</file>
-
-<file path="lib/types.ts">
-// lib/types.ts
-// ─── Tipos centralizados de la aplicación ────────────────────────────────────
-
-// ─── User & Auth ──────────────────────────────────────────────────────────────
-
-export interface Organization {
-  id: string
-  userId: string
-  name: string | null
-  description: string | null
-  logoUrl: string | null
-  website: string | null
-  phone: string | null
-  address: string | null
-  createdAt: string
-  updatedAt: string
-}
-
-export interface AffiliateData {
-  id: string
-  userId: string
-  balance: string
-  referralCount: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface UserProfile {
-  id: string
-  firebaseUid: string
-  email: string
-  isOwner: boolean
-  isAffiliate: boolean
-  affiliateCode: string | null
-  referredByCode: string | null
-  createdAt: string
-  updatedAt: string
-  organization: Organization | null
-  affiliateData: AffiliateData | null
-}
-
-export interface AffiliateReferral {
-  id: string
-  email: string
-  isOwner: boolean
-  isAffiliate: boolean
-  createdAt: string
-}
-
-// ─── Collaborators ────────────────────────────────────────────────────────────
-
-export type CollaboratorStatus = 'PENDING' | 'ACTIVE' | 'REMOVED'
-
-export interface CollaboratorPermissions {
-  canViewListings: boolean
-  canCreateListings: boolean
-  canEditListings: boolean
-  canDeleteListings: boolean
-  canViewStats: boolean
-  canManageLeads: boolean
-  canManageCollaborators: boolean
-}
-
-export interface Collaborator extends CollaboratorPermissions {
-  id: string
-  organizationId: string
-  userId: string | null
-  email: string
-  status: CollaboratorStatus
-  invitedAt: string
-  acceptedAt: string | null
-  updatedAt: string
-  user: { email: string; firebaseUid: string } | null
-  invitation: {
-    expiresAt: string
-    usedAt: string | null
-    token: string
-  } | null
-}
-
-export interface InvitationInfo {
-  email: string
-  organization: { id: string; name: string | null; logoUrl: string | null }
-  expiresAt: string
-  permissions: CollaboratorPermissions
-}
-
-export type InviteCollaboratorPayload = { email: string } & Partial<CollaboratorPermissions>
 </file>
 
 <file path=".gitignore">
@@ -994,41 +299,250 @@ node_modules/
 }
 </file>
 
-<file path="app/layout.tsx">
-import type { Metadata, Viewport } from 'next'
-import { DM_Sans, DM_Serif_Display } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import { AuthProvider } from '@/components/auth-provider-wrapper'
-import './globals.css'
+<file path="app/invite/[token]/page.tsx">
+'use client'
 
-const dmSans  = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' })
-const dmSerif = DM_Serif_Display({ weight: '400', subsets: ['latin'], variable: '--font-dm-serif' })
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import {
+  Building2, Check, X, Loader2, ShieldCheck,
+  AlertCircle, LogIn,
+} from 'lucide-react'
+import { useAuth } from '@/context/auth-context'
+import type { InvitationInfo } from '@/lib/types'
+import { acceptInvitation, getInvitationInfo } from '@/lib/api'
 
-export const metadata: Metadata = {
-  title: 'Propiedad - The Real Estate Platform for Modern Agencies',
-  description: 'Propiedad is the all-in-one SaaS platform that helps real estate agencies manage listings, close deals faster, and grow their business.',
+const PERMISSION_LABELS: Record<string, string> = {
+  canViewListings:        'Ver propiedades',
+  canCreateListings:      'Crear propiedades',
+  canEditListings:        'Editar propiedades',
+  canDeleteListings:      'Eliminar propiedades',
+  canViewStats:           'Ver estadísticas',
+  canManageLeads:         'Gestionar clientes',
+  canManageCollaborators: 'Gestionar colaboradores',
 }
 
-export const viewport: Viewport = {
-  themeColor: '#f5f0eb',
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-}
+export default function InvitePage() {
+  const params  = useParams()
+  const router  = useRouter()
+  const token   = params?.token as string
+  const { firebaseUser, loading: authLoading } = useAuth()
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+  const [info, setInfo]               = useState<InvitationInfo | null>(null)
+  const [loadingInfo, setLoadingInfo] = useState(true)
+  const [accepting, setAccepting]     = useState(false)
+  const [accepted, setAccepted]       = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+
+  // Cargar info de la invitación — ruta pública, no requiere auth
+  useEffect(() => {
+    if (!token) return
+    setLoadingInfo(true)
+    getInvitationInfo(token)
+      .then(res => setInfo(res.data))
+      .catch(e => setError(e.message ?? 'Invitación inválida o expirada'))
+      .finally(() => setLoadingInfo(false))
+  }, [token])
+
+  const handleAccept = async () => {
+    if (!firebaseUser) return
+    setAccepting(true)
+    setError(null)
+    try {
+      await acceptInvitation(token)
+      setAccepted(true)
+      setTimeout(() => router.push('/profile'), 2500)
+    } catch (e: any) {
+      setError(e.message ?? 'Error al aceptar la invitación')
+    } finally {
+      setAccepting(false)
+    }
+  }
+
+  const activePerms = info
+    ? Object.entries(info.permissions)
+        .filter(([, v]) => v)
+        .map(([k]) => PERMISSION_LABELS[k] ?? k)
+    : []
+
+  // ── Loading ───────────────────────────────────────────────────────────────────
+  if (loadingInfo || authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // ── Invitación inválida / expirada ────────────────────────────────────────────
+  if (error && !info) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-auto max-w-sm w-full rounded-3xl border border-border bg-card p-8 text-center shadow-xl"
+        >
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-destructive/10 mx-auto">
+            <X className="size-7 text-destructive" />
+          </div>
+          <h1 className="mt-4 font-serif text-xl text-foreground">Invitación no válida</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-6 flex h-11 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all"
+          >
+            Volver al inicio
+          </button>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // ── Aceptada con éxito ────────────────────────────────────────────────────────
+  if (accepted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mx-auto max-w-sm w-full rounded-3xl border border-emerald-200 bg-card p-8 text-center shadow-xl"
+        >
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-100 mx-auto">
+            <Check className="size-7 text-emerald-600" />
+          </div>
+          <h1 className="mt-4 font-serif text-xl text-foreground">¡Bienvenido al equipo!</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Ya sos colaborador de{' '}
+            <strong>{info?.organization.name ?? 'la organización'}</strong>.
+            Redirigiendo…
+          </p>
+          <Loader2 className="mt-4 size-5 animate-spin text-muted-foreground mx-auto" />
+        </motion.div>
+      </div>
+    )
+  }
+
+  // ── Vista principal ────────────────────────────────────────────────────────────
   return (
-    <html lang="en" suppressHydrationWarning className={`${dmSans.variable} ${dmSerif.variable}`}>
-      <body className="font-sans antialiased" suppressHydrationWarning>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-        <Analytics />
-      </body>
-    </html>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+        className="mx-auto max-w-sm w-full space-y-5"
+      >
+        {/* Card de la org */}
+        <div className="rounded-3xl border border-border bg-card p-7 shadow-xl">
+          {/* Logo */}
+          <div className="flex justify-center mb-5">
+            {info?.organization.logoUrl ? (
+              <img
+                src={info.organization.logoUrl}
+                alt="Logo"
+                className="size-16 rounded-2xl border border-border object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            ) : (
+              <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10">
+                <Building2 className="size-8 text-primary" />
+              </div>
+            )}
+          </div>
+
+          <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Invitación a colaborar
+            </p>
+            <h1 className="mt-2 font-serif text-2xl text-foreground">
+              {info?.organization.name ?? 'Una organización'}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Te invitaron a unirte como colaborador con los siguientes permisos:
+            </p>
+          </div>
+
+          {/* Permisos */}
+          {activePerms.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-border bg-secondary/30 p-4 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5" /> Tus permisos
+              </p>
+              {activePerms.map(p => (
+                <div key={p} className="flex items-center gap-2 text-sm text-foreground">
+                  <Check className="size-3.5 shrink-0 text-primary" /> {p}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Email destinatario */}
+          <div className="mt-4 rounded-xl border border-border bg-secondary/30 px-3 py-2.5 text-center">
+            <p className="text-xs text-muted-foreground">Invitación para</p>
+            <p className="text-sm font-medium text-foreground mt-0.5">{info?.email}</p>
+          </div>
+        </div>
+
+        {/* Acción según estado de auth */}
+        {!firebaseUser ? (
+          // No logueado → mandar a login
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="size-4 shrink-0 text-amber-500 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                Para aceptar necesitás iniciar sesión con{' '}
+                <strong className="text-foreground">{info?.email}</strong>.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push(`/?invite=${token}`)}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all"
+            >
+              <LogIn className="size-4" /> Iniciar sesión para aceptar
+            </button>
+          </div>
+        ) : firebaseUser.email?.toLowerCase() !== info?.email.toLowerCase() ? (
+          // Logueado con cuenta incorrecta
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="size-4 shrink-0 text-destructive mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Cuenta incorrecta</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Estás logueado como{' '}
+                  <strong>{firebaseUser.email}</strong> pero la invitación es para{' '}
+                  <strong>{info?.email}</strong>. Cerrá sesión y volvé a intentar.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Logueado con la cuenta correcta → puede aceptar
+          <div className="space-y-3">
+            {error && (
+              <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+                <AlertCircle className="size-4 shrink-0 text-destructive" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={handleAccept}
+              disabled={accepting}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all shadow-lg shadow-primary/20"
+            >
+              {accepting
+                ? <><Loader2 className="size-5 animate-spin" /> Aceptando…</>
+                : <><Check className="size-5" /> Aceptar invitación</>
+              }
+            </button>
+            <p className="text-center text-xs text-muted-foreground">
+              Logueado como <strong>{firebaseUser.email}</strong>
+            </p>
+          </div>
+        )}
+      </motion.div>
+    </div>
   )
 }
 </file>
@@ -1061,6 +575,1533 @@ export default function Page() {
 }
 </file>
 
+<file path="app/profile/page.tsx">
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Building2, Users, Check, ChevronRight, Copy,
+  Globe, Phone, MapPin, FileText, ImageIcon, Loader2,
+  TrendingUp, UserCheck, Star, ArrowRight, Pencil, X,
+  ExternalLink, Lock,
+  AlertTriangle,
+} from 'lucide-react'
+import { useAuth } from '@/context/auth-context'
+import { selectRole, updateMyOrganization } from '@/lib/api'
+import type { Organization } from '@/lib/types'
+import { CollaboratorsSection } from '@/components/collaborators-section'
+
+const spring = { type: 'spring' as const, stiffness: 300, damping: 28 }
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+
+function StatCard({ icon: Icon, label, value }: { icon: any; label: string; value: string | number }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-5">
+      <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10">
+        <Icon className="size-4 text-primary" />
+      </div>
+      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  )
+}
+
+// ─── Copy Code ────────────────────────────────────────────────────────────────
+
+function CopyCode({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button
+      onClick={copy}
+      className="flex items-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm font-mono font-medium text-foreground transition-all hover:bg-primary/5 hover:border-primary/30"
+    >
+      <span>{code}</span>
+      {copied
+        ? <Check className="size-4 text-primary" />
+        : <Copy className="size-4 text-muted-foreground" />
+      }
+    </button>
+  )
+}
+
+// ─── Role Selector ────────────────────────────────────────────────────────────
+
+function RoleSelector({ onRoleSelected }: { onRoleSelected: () => void }) {
+  const { refreshProfile } = useAuth()
+  const [loading, setLoading] = useState<'owner' | 'affiliate' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSelect = async (role: 'owner' | 'affiliate') => {
+    setLoading(role)
+    setError(null)
+    try {
+      await selectRole(role)
+      await refreshProfile()
+      onRoleSelected()
+    } catch (e: any) {
+      setError(e.message ?? 'Error al seleccionar el rol')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const cards = [
+    {
+      role: 'owner' as const,
+      icon: Building2,
+      title: 'Propietario / Agencia',
+      description: 'Gestioná tus propiedades, publicaciones y equipo desde un solo lugar.',
+      perks: ['Panel de propiedades', 'Perfil de organización', 'Estadísticas de visitas'],
+      accent: 'from-amber-500/10 to-orange-500/5 border-amber-200/50',
+    },
+    {
+      role: 'affiliate' as const,
+      icon: Users,
+      title: 'Afiliado',
+      description: 'Referí nuevas agencias y ganá comisiones por cada cliente que sumés.',
+      perks: ['Código de referido único', 'Dashboard de comisiones', 'Historial de referidos'],
+      accent: 'from-emerald-500/10 to-teal-500/5 border-emerald-200/50',
+    },
+  ]
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-8 text-center">
+        <h2 className="font-serif text-2xl text-foreground md:text-3xl">¿Cómo querés usar Propiedad?</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Podés tener ambos roles activos al mismo tiempo.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {cards.map(({ role, icon: Icon, title, description, perks, accent }) => (
+          <motion.button
+            key={role}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleSelect(role)}
+            disabled={!!loading}
+            className={`group relative flex flex-col items-start gap-4 overflow-hidden rounded-2xl border bg-gradient-to-br p-6 text-left transition-all disabled:opacity-60 ${accent}`}
+          >
+            <div className="flex size-11 items-center justify-center rounded-xl bg-white/60 backdrop-blur-sm shadow-sm">
+              {loading === role
+                ? <Loader2 className="size-5 animate-spin text-primary" />
+                : <Icon className="size-5 text-foreground" />
+              }
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">{title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{description}</p>
+            </div>
+            <ul className="flex flex-col gap-1.5">
+              {perks.map(p => (
+                <li key={p} className="flex items-center gap-2 text-xs text-foreground/80">
+                  <Check className="size-3.5 shrink-0 text-primary" /> {p}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-auto flex items-center gap-1 text-xs font-medium text-primary">
+              Activar <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </motion.button>
+        ))}
+      </div>
+      {error && <p className="mt-4 text-center text-sm text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+// ─── Organization Edit Form ───────────────────────────────────────────────────
+
+function OrganizationEditForm({
+  org,
+  onCancel,
+  onSaved,
+}: {
+  org: Organization | null
+  onCancel: () => void
+  onSaved: () => void
+}) {
+  const { refreshProfile } = useAuth()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    name:        org?.name        ?? '',
+    description: org?.description ?? '',
+    logoUrl:     org?.logoUrl     ?? '',
+    website:     org?.website     ?? '',
+    phone:       org?.phone       ?? '',
+    address:     org?.address     ?? '',
+  })
+
+  const set = (key: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm(prev => ({ ...prev, [key]: e.target.value }))
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const payload = Object.fromEntries(
+        Object.entries(form).filter(([, v]) => v !== '')
+      )
+      await updateMyOrganization(payload)
+      await refreshProfile()
+      onSaved()
+    } catch (e: any) {
+      setError(e.message ?? 'Error al guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const fields = [
+    { key: 'name'        as const, label: 'Nombre',       icon: Building2, placeholder: 'Ej: Inmobiliaria San Martín',       type: 'input'    },
+    { key: 'description' as const, label: 'Descripción',  icon: FileText,  placeholder: 'Contá brevemente a qué se dedican', type: 'textarea' },
+    { key: 'logoUrl'     as const, label: 'URL del logo', icon: ImageIcon, placeholder: 'https://...',                        type: 'input'    },
+    { key: 'website'     as const, label: 'Sitio web',    icon: Globe,     placeholder: 'https://miinmobiliaria.com',         type: 'input'    },
+    { key: 'phone'       as const, label: 'Teléfono',     icon: Phone,     placeholder: '+54 11 1234-5678',                   type: 'input'    },
+    { key: 'address'     as const, label: 'Dirección',    icon: MapPin,    placeholder: 'Av. Corrientes 1234, CABA',          type: 'input'    },
+  ]
+
+  return (
+    <form onSubmit={handleSave} className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-foreground">Editar organización</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Todos los campos son opcionales</p>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {fields.map(({ key, label, icon: Icon, placeholder, type }) => (
+          <div key={key} className="space-y-1.5">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Icon className="size-3.5 text-muted-foreground" /> {label}
+            </label>
+            {type === 'textarea' ? (
+              <textarea
+                value={form[key]}
+                onChange={set(key)}
+                placeholder={placeholder}
+                rows={3}
+                className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            ) : (
+              <input
+                type="text"
+                value={form[key]}
+                onChange={set(key)}
+                placeholder={placeholder}
+                className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div className="flex gap-3 pt-1">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-secondary transition-all"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all"
+        >
+          {saving
+            ? <><Loader2 className="size-4 animate-spin" /> Guardando…</>
+            : <>Guardar <ArrowRight className="size-4" /></>
+          }
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ─── Organization Profile View ────────────────────────────────────────────────
+
+function OrganizationProfile({ org }: { org: Organization | null }) {
+  const [editing, setEditing] = useState(false)
+  const isEmpty = !org?.name && !org?.description && !org?.website && !org?.phone && !org?.address
+
+  if (editing) {
+    return (
+      <motion.div
+        key="edit"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.15 }}
+      >
+        <OrganizationEditForm
+          org={org}
+          onCancel={() => setEditing(false)}
+          onSaved={() => setEditing(false)}
+        />
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.div
+      key="view"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15 }}
+      className="space-y-6"
+    >
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <div className="relative shrink-0">
+          {org?.logoUrl ? (
+            <img
+              src={org.logoUrl}
+              alt={org.name ?? 'Logo'}
+              className="size-16 rounded-2xl border border-border object-cover"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          ) : (
+            <div className="flex size-16 items-center justify-center rounded-2xl border border-dashed border-border bg-secondary">
+              <Building2 className="size-7 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-serif text-xl text-foreground truncate">
+            {org?.name ?? 'Sin nombre aún'}
+          </h2>
+          {org?.description && (
+            <p className="mt-1 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+              {org.description}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => setEditing(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+        >
+          <Pencil className="size-3" /> Editar
+        </button>
+      </div>
+
+      {/* Contacto */}
+      {!isEmpty ? (
+        <div className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden">
+          {org?.website && (
+            <a
+              href={org.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-secondary/50 transition-colors group"
+            >
+              <Globe className="size-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate">{org.website}</span>
+              <ExternalLink className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </a>
+          )}
+          {org?.phone && (
+            <div className="flex items-center gap-3 px-4 py-3 text-sm text-foreground">
+              <Phone className="size-4 shrink-0 text-muted-foreground" />
+              <span>{org.phone}</span>
+            </div>
+          )}
+          {org?.address && (
+            <div className="flex items-center gap-3 px-4 py-3 text-sm text-foreground">
+              <MapPin className="size-4 shrink-0 text-muted-foreground" />
+              <span className="line-clamp-1">{org.address}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-border bg-secondary/30 px-6 py-8 text-center">
+          <Building2 className="mx-auto size-8 text-muted-foreground/50" />
+          <p className="mt-3 text-sm font-medium text-foreground">Tu organización está lista</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Completá el perfil para que tus clientes puedan encontrarte.
+          </p>
+          <button
+            onClick={() => setEditing(true)}
+            className="mt-4 flex items-center gap-2 mx-auto h-9 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all"
+          >
+            <Pencil className="size-3.5" /> Completar perfil
+          </button>
+        </div>
+      )}
+
+      {/* Colaboradores */}
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <CollaboratorsSection />
+      </div>
+      
+      <SensitiveDataCard/>
+
+    </motion.div>
+  )
+}
+
+// ─── Affiliate Dashboard ──────────────────────────────────────────────────────
+
+function AffiliateDashboard({ affiliateCode, balance, referralCount }: {
+  affiliateCode: string
+  balance: string
+  referralCount: number
+}) {
+  const referralLink = typeof window !== 'undefined'
+    ? `${window.location.origin}/?ref=${affiliateCode}`
+    : `https://propiedad.app/?ref=${affiliateCode}`
+
+  const [copiedLink, setCopiedLink] = useState(false)
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(referralLink)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-serif text-2xl text-foreground">Panel de afiliado</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Compartí tu código y ganá por cada referido que se convierte.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <StatCard icon={TrendingUp} label="Balance acumulado" value={`$${balance}`} />
+        <StatCard icon={UserCheck}  label="Referidos activos" value={referralCount} />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        <p className="text-sm font-medium text-foreground">Tu código de afiliado</p>
+        <CopyCode code={affiliateCode} />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        <p className="text-sm font-medium text-foreground">Link de referido</p>
+        <div className="flex items-center gap-2">
+          <p className="flex-1 truncate rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground font-mono">
+            {referralLink}
+          </p>
+          <button
+            onClick={copyLink}
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-sm font-medium text-foreground transition-all hover:bg-secondary"
+          >
+            {copiedLink
+              ? <><Check className="size-4 text-primary" /> Copiado</>
+              : <><Copy className="size-4" /> Copiar</>
+            }
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Compartí este link. Cuando alguien se registre con él, se contará como tu referido.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+type Tab = 'overview' | 'organization' | 'affiliate'
+
+export default function ProfilePage() {
+  const router = useRouter()
+  const { profile, loading, firebaseUser } = useAuth()
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
+
+  // No autenticado
+  if (!loading && !firebaseUser) {
+    router.replace('/')
+    return null
+  }
+
+  // Cargando Firebase
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // Firebase ok pero el backend no respondió
+  if (firebaseUser && !profile) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">No se pudo cargar tu perfil</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Verificá que el backend esté corriendo en{' '}
+            <code className="rounded bg-secondary px-1 py-0.5 text-xs">
+              {process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'}
+            </code>
+          </p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="flex h-9 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+        >
+          Reintentar
+        </button>
+      </div>
+    )
+  }
+
+  const hasOwner     = profile?.isOwner
+  const hasAffiliate = profile?.isAffiliate
+  const hasAnyRole   = hasOwner || hasAffiliate
+
+  const tabs = [
+    { id: 'overview'     as Tab, label: 'Resumen'      },
+    ...(hasOwner     ? [{ id: 'organization' as Tab, label: 'Organización' }] : []),
+    ...(hasAffiliate ? [{ id: 'affiliate'    as Tab, label: 'Afiliado'     }] : []),
+  ]
+
+  return (
+    <main className="min-h-screen bg-background pt-20 pb-16">
+      <div className="mx-auto max-w-3xl px-4 lg:px-8">
+
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="mb-8 flex items-center gap-4"
+        >
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-xl font-semibold text-primary">
+            {profile?.email?.slice(0, 2).toUpperCase() ?? 'U'}
+          </div>
+          <div>
+            <h1 className="font-serif text-2xl text-foreground md:text-3xl">Mi cuenta</h1>
+            <p className="text-sm text-muted-foreground">{profile?.email}</p>
+          </div>
+        </motion.div>
+
+        {/* Tabs */}
+        {hasAnyRole && (
+          <div className="mb-8 flex gap-1 rounded-xl border border-border bg-secondary/50 p-1">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18 }}
+          >
+            {/* OVERVIEW */}
+            {(activeTab === 'overview' || !hasAnyRole) && (
+              <div className="space-y-6">
+                {hasAnyRole && (
+                  <div className="flex flex-wrap gap-2">
+                    {hasOwner && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                        <Building2 className="size-3" /> Propietario
+                      </span>
+                    )}
+                    {hasAffiliate && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                        <Star className="size-3" /> Afiliado · {profile?.affiliateCode}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {!hasAnyRole && (
+                  <RoleSelector onRoleSelected={() => setActiveTab('overview')} />
+                )}
+
+                {hasAnyRole && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {hasOwner && (
+                      <button
+                        onClick={() => setActiveTab('organization')}
+                        className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-left transition-all hover:border-primary/30 hover:shadow-md"
+                      >
+                        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                          <Building2 className="size-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-foreground">
+                            {profile?.organization?.name ?? 'Completar organización'}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {profile?.organization?.name ? 'Ver y editar perfil' : 'Nombre, logo, contacto…'}
+                          </p>
+                        </div>
+                        <ChevronRight className="mt-auto size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    )}
+                    {hasAffiliate && (
+                      <button
+                        onClick={() => setActiveTab('affiliate')}
+                        className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-left transition-all hover:border-primary/30 hover:shadow-md"
+                      >
+                        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                          <Users className="size-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-foreground">Panel de afiliado</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {profile?.affiliateData?.referralCount ?? 0} referidos · ${profile?.affiliateData?.balance ?? '0.00'}
+                          </p>
+                        </div>
+                        <ChevronRight className="mt-auto size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {hasAnyRole && !(hasOwner && hasAffiliate) && (
+                  <div className="mt-2">
+                    <p className="mb-3 text-sm text-muted-foreground">¿También querés activar otro rol?</p>
+                    <RoleSelector onRoleSelected={() => setActiveTab('overview')} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ORGANIZATION */}
+            {activeTab === 'organization' && hasOwner && (
+              <OrganizationProfile org={profile?.organization ?? null} />
+            )}
+
+            {/* AFFILIATE */}
+            {activeTab === 'affiliate' && hasAffiliate && profile?.affiliateCode && (
+              <AffiliateDashboard
+                affiliateCode={profile.affiliateCode}
+                balance={profile.affiliateData?.balance ?? '0.00'}
+                referralCount={profile.affiliateData?.referralCount ?? 0}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </main>
+  )
+}
+
+// ─── Sensitive Data Card ──────────────────────────────────────────────────────
+
+function SensitiveDataCard() {
+  const router = useRouter()
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10">
+          <Lock className="size-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Datos sensibles y API keys</p>
+          <p className="text-xs text-muted-foreground">Claves de acceso, tokens y credenciales</p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2.5 dark:border-yellow-900/50 dark:bg-yellow-950/30">
+        <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-500" />
+        <p className="text-xs text-yellow-800 dark:text-yellow-400 leading-relaxed">
+          Nunca compartas tus API keys. Tratá esta página como si fuera una contraseña.
+        </p>
+      </div>
+
+      <ul className="flex flex-col gap-1.5">
+        {['API keys de tu cuenta', 'Webhooks y secretos', 'Tokens de integración'].map(item => (
+          <li key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-primary shrink-0" />
+            {item}
+          </li>
+        ))}
+      </ul>
+
+      <button
+        onClick={() => router.push('/settings/api-keys')}
+        className="flex w-full h-10 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] transition-all"
+      >
+        <Lock className="size-3.5" />
+        Ir a datos sensibles
+        <ArrowRight className="size-3.5" />
+      </button>
+    </div>
+  )
+}
+</file>
+
+<file path="app/settings/api-keys/page.tsx">
+'use client'
+ 
+import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  ArrowLeft, Plus, Copy, Check, Eye, EyeOff, Trash2,
+  Pencil, Loader2, Key, Zap, ShieldCheck, AlertTriangle,
+  X, ChevronRight, Lock,
+} from 'lucide-react'
+import { useAuth } from '@/context/auth-context'
+ 
+// ─── Types ─────────────────────────────────────────────────────────────────────
+ 
+type KeyType = 'api_key' | 'integration_token'
+ 
+type KeyPermission = 'read' | 'write' | 'admin'
+ 
+interface SensitiveKey {
+  id: string
+  name: string
+  description?: string
+  type: KeyType
+  permissions: KeyPermission[]
+  prefix: string          // e.g. "pk_live_"
+  maskedValue: string     // e.g. "pk_live_••••••••••••••••3f9a"
+  fullValue?: string      // only set temporarily after creation
+  createdAt: string
+  lastUsedAt?: string
+  expiresAt?: string
+}
+ 
+// ─── Mock data (replace with real API calls) ───────────────────────────────────
+ 
+const MOCK_KEYS: SensitiveKey[] = [
+  {
+    id: 'key_1',
+    name: 'Producción principal',
+    description: 'Usada por el servidor de producción',
+    type: 'api_key',
+    permissions: ['read', 'write'],
+    prefix: 'pk_live_',
+    maskedValue: 'pk_live_••••••••••••••••3f9a',
+    createdAt: '2025-11-10T14:22:00Z',
+    lastUsedAt: '2026-03-18T09:11:00Z',
+  },
+  {
+    id: 'key_2',
+    name: 'CI / Testing',
+    description: 'Integración continua en GitHub Actions',
+    type: 'api_key',
+    permissions: ['read'],
+    prefix: 'pk_test_',
+    maskedValue: 'pk_test_••••••••••••••••c12b',
+    createdAt: '2025-12-01T08:00:00Z',
+    lastUsedAt: '2026-03-17T22:48:00Z',
+  },
+  {
+    id: 'tok_1',
+    name: 'Integración Zapier',
+    type: 'integration_token',
+    permissions: ['read', 'write'],
+    prefix: 'tok_',
+    maskedValue: 'tok_••••••••••••••••••••a77d',
+    createdAt: '2026-01-15T11:30:00Z',
+  },
+]
+ 
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+ 
+const TYPE_META: Record<KeyType, { label: string; icon: any; color: string }> = {
+  api_key:           { label: 'API key',             icon: Key,  color: 'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/40 dark:border-blue-900/50' },
+  integration_token: { label: 'Token de integración', icon: Zap,  color: 'text-purple-600 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-950/40 dark:border-purple-900/50' },
+}
+ 
+const PERM_LABELS: Record<KeyPermission, string> = {
+  read:  'Lectura',
+  write: 'Escritura',
+  admin: 'Administrador',
+}
+ 
+function formatDate(iso: string) {
+  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso))
+}
+ 
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const h = Math.floor(diff / 3600000)
+  if (h < 1)  return 'hace menos de 1h'
+  if (h < 24) return `hace ${h}h`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `hace ${d}d`
+  return formatDate(iso)
+}
+ 
+// ─── Copy Button ───────────────────────────────────────────────────────────────
+ 
+function CopyBtn({ value, size = 'sm' }: { value: string; size?: 'sm' | 'xs' }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button
+      onClick={copy}
+      title="Copiar"
+      className={`flex items-center justify-center rounded-lg border border-border text-muted-foreground transition-all hover:bg-secondary hover:text-foreground ${size === 'xs' ? 'size-7' : 'size-8'}`}
+    >
+      {copied
+        ? <Check className={size === 'xs' ? 'size-3 text-primary' : 'size-3.5 text-primary'} />
+        : <Copy className={size === 'xs' ? 'size-3' : 'size-3.5'} />
+      }
+    </button>
+  )
+}
+ 
+// ─── Permission Badge ──────────────────────────────────────────────────────────
+ 
+function PermBadge({ perm }: { perm: KeyPermission }) {
+  const styles: Record<KeyPermission, string> = {
+    read:  'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-400',
+    write: 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-400',
+    admin: 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-900/50 dark:text-red-400',
+  }
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${styles[perm]}`}>
+      {PERM_LABELS[perm]}
+    </span>
+  )
+}
+ 
+// ─── Reveal value inline ───────────────────────────────────────────────────────
+ 
+function RevealValue({ masked, full }: { masked: string; full?: string }) {
+  const [revealed, setRevealed] = useState(false)
+  const display = revealed && full ? full : masked
+  return (
+    <div className="flex items-center gap-2">
+      <code className="flex-1 rounded-lg border border-border bg-secondary px-3 py-1.5 font-mono text-xs text-foreground tracking-wide truncate">
+        {display}
+      </code>
+      {full && (
+        <button
+          onClick={() => setRevealed(v => !v)}
+          title={revealed ? 'Ocultar' : 'Mostrar'}
+          className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
+        >
+          {revealed
+            ? <EyeOff className="size-3.5" />
+            : <Eye     className="size-3.5" />
+          }
+        </button>
+      )}
+      <CopyBtn value={full ?? masked} size="xs" />
+    </div>
+  )
+}
+ 
+// ─── Delete Confirm Modal ──────────────────────────────────────────────────────
+ 
+function DeleteModal({ keyItem, onClose, onConfirm }: {
+  keyItem: SensitiveKey
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const [typed,   setTyped]   = useState('')
+  const target = keyItem.name
+ 
+  const handleConfirm = async () => {
+    setLoading(true)
+    await new Promise(r => setTimeout(r, 800)) // replace with real API
+    onConfirm()
+  }
+ 
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 8 }}
+        animate={{ scale: 1,    y: 0 }}
+        exit={{ scale: 0.95, y: 8 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+      >
+        <div className="flex size-11 items-center justify-center rounded-xl bg-destructive/10 mb-4">
+          <Trash2 className="size-5 text-destructive" />
+        </div>
+        <h3 className="font-semibold text-foreground">Revocar credencial</h3>
+        <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+          Esta acción es <strong className="text-foreground">irreversible</strong>. Cualquier aplicación que use esta key dejará de funcionar de inmediato.
+        </p>
+        <div className="mt-4 space-y-1.5">
+          <label className="text-xs text-muted-foreground">
+            Escribí <span className="font-medium text-foreground">{target}</span> para confirmar
+          </label>
+          <input
+            type="text"
+            value={typed}
+            onChange={e => setTyped(e.target.value)}
+            placeholder={target}
+            className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20 transition-all"
+          />
+        </div>
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-secondary transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={typed !== target || loading}
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-destructive text-sm font-semibold text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-50 transition-all"
+          >
+            {loading
+              ? <Loader2 className="size-4 animate-spin" />
+              : <><Trash2 className="size-3.5" /> Revocar</>
+            }
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+ 
+// ─── Edit Drawer ───────────────────────────────────────────────────────────────
+ 
+const ALL_PERMS: KeyPermission[] = ['read', 'write', 'admin']
+ 
+function EditDrawer({ keyItem, onClose, onSaved }: {
+  keyItem: SensitiveKey
+  onClose: () => void
+  onSaved: (updated: Partial<SensitiveKey>) => void
+}) {
+  const [name,        setName]        = useState(keyItem.name)
+  const [description, setDescription] = useState(keyItem.description ?? '')
+  const [permissions, setPermissions] = useState<KeyPermission[]>(keyItem.permissions)
+  const [saving,      setSaving]      = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
+ 
+  const togglePerm = (p: KeyPermission) =>
+    setPermissions(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])
+ 
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return setError('El nombre es obligatorio')
+    if (permissions.length === 0) return setError('Seleccioná al menos un permiso')
+    setSaving(true)
+    setError(null)
+    await new Promise(r => setTimeout(r, 700)) // replace with real API
+    onSaved({ name: name.trim(), description: description.trim(), permissions })
+  }
+ 
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4 sm:pb-0 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <motion.form
+        onSubmit={handleSave}
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0,  opacity: 1 }}
+        exit={{ y: 40, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl space-y-5"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-foreground">Editar credencial</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Actualizá nombre, descripción o permisos</p>
+          </div>
+          <button type="button" onClick={onClose}
+            className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+ 
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Nombre</label>
+          <input
+            type="text" value={name} onChange={e => setName(e.target.value)} required
+            placeholder="Ej: Servidor de producción"
+            className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+          />
+        </div>
+ 
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Descripción <span className="text-muted-foreground font-normal">(opcional)</span></label>
+          <textarea
+            value={description} onChange={e => setDescription(e.target.value)}
+            placeholder="Para qué se usa esta key"
+            rows={2}
+            className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+          />
+        </div>
+ 
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-foreground">Permisos</label>
+          <div className="flex gap-2 flex-wrap">
+            {ALL_PERMS.map(p => (
+              <button
+                key={p} type="button" onClick={() => togglePerm(p)}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                  permissions.includes(p)
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border bg-card text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                {permissions.includes(p) && <Check className="size-3" />}
+                {PERM_LABELS[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+ 
+        {error && <p className="text-sm text-destructive">{error}</p>}
+ 
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onClose}
+            className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-secondary transition-all"
+          >
+            Cancelar
+          </button>
+          <button type="submit" disabled={saving}
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <>Guardar <ArrowLeft className="size-3.5 rotate-180" /></>}
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
+  )
+}
+ 
+// ─── Create Key Modal ──────────────────────────────────────────────────────────
+ 
+function CreateKeyModal({ onClose, onCreate }: {
+  onClose: () => void
+  onCreate: (key: SensitiveKey) => void
+}) {
+  const [step,        setStep]        = useState<'form' | 'reveal'>('form')
+  const [name,        setName]        = useState('')
+  const [description, setDescription] = useState('')
+  const [type,        setType]        = useState<KeyType>('api_key')
+  const [permissions, setPermissions] = useState<KeyPermission[]>(['read'])
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
+  const [newKey,      setNewKey]      = useState<SensitiveKey | null>(null)
+ 
+  const togglePerm = (p: KeyPermission) =>
+    setPermissions(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])
+ 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return setError('El nombre es obligatorio')
+    if (permissions.length === 0) return setError('Seleccioná al menos un permiso')
+    setLoading(true)
+    setError(null)
+    await new Promise(r => setTimeout(r, 900)) // replace with real API
+ 
+    // Mock: generate a fake key value
+    const prefix    = type === 'api_key' ? 'pk_live_' : 'tok_'
+    const raw       = prefix + Array.from({ length: 32 }, () => Math.random().toString(36)[2]).join('')
+    const created: SensitiveKey = {
+      id:          'key_' + Date.now(),
+      name:        name.trim(),
+      description: description.trim() || undefined,
+      type,
+      permissions,
+      prefix,
+      maskedValue: prefix + '•'.repeat(16) + raw.slice(-4),
+      fullValue:   raw,
+      createdAt:   new Date().toISOString(),
+    }
+    setNewKey(created)
+    setStep('reveal')
+    setLoading(false)
+  }
+ 
+  const handleDone = () => {
+    if (newKey) onCreate(newKey)
+    onClose()
+  }
+ 
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4 sm:pb-0 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget && step !== 'reveal') onClose() }}
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0,  opacity: 1 }}
+        exit={{ y: 40, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+      >
+        <AnimatePresence mode="wait">
+ 
+          {/* ── Step 1: Form ── */}
+          {step === 'form' && (
+            <motion.form
+              key="form"
+              onSubmit={handleCreate}
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 12 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-foreground">Nueva credencial</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Configurá nombre, tipo y permisos</p>
+                </div>
+                <button type="button" onClick={onClose}
+                  className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+ 
+              {/* Tipo */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Tipo</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(Object.entries(TYPE_META) as [KeyType, typeof TYPE_META[KeyType]][]).map(([t, meta]) => {
+                    const Icon = meta.icon
+                    return (
+                      <button
+                        key={t} type="button" onClick={() => setType(t)}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
+                          type === t
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-border bg-card text-muted-foreground hover:bg-secondary'
+                        }`}
+                      >
+                        <Icon className="size-4 shrink-0" /> {meta.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+ 
+              {/* Nombre */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Nombre</label>
+                <input
+                  type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder="Ej: Servidor de producción"
+                  className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                />
+              </div>
+ 
+              {/* Descripción */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">
+                  Descripción <span className="text-muted-foreground font-normal">(opcional)</span>
+                </label>
+                <textarea
+                  value={description} onChange={e => setDescription(e.target.value)}
+                  placeholder="Para qué se va a usar"
+                  rows={2}
+                  className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                />
+              </div>
+ 
+              {/* Permisos */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Permisos</label>
+                <div className="flex gap-2 flex-wrap">
+                  {ALL_PERMS.map(p => (
+                    <button
+                      key={p} type="button" onClick={() => togglePerm(p)}
+                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                        permissions.includes(p)
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-border bg-card text-muted-foreground hover:bg-secondary'
+                      }`}
+                    >
+                      {permissions.includes(p) && <Check className="size-3" />}
+                      {PERM_LABELS[p]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+ 
+              {error && <p className="text-sm text-destructive">{error}</p>}
+ 
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={onClose}
+                  className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-secondary transition-all"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" disabled={loading}
+                  className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all"
+                >
+                  {loading
+                    ? <Loader2 className="size-4 animate-spin" />
+                    : <><Plus className="size-4" /> Crear credencial</>
+                  }
+                </button>
+              </div>
+            </motion.form>
+          )}
+ 
+          {/* ── Step 2: Reveal ── */}
+          {step === 'reveal' && newKey && (
+            <motion.div
+              key="reveal"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-5"
+            >
+              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/50">
+                <ShieldCheck className="size-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+ 
+              <div>
+                <h3 className="font-semibold text-foreground">Credencial creada</h3>
+                <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                  Copiá el valor ahora. <strong className="text-foreground">No volvés a verlo completo</strong> una vez que cerrés este modal.
+                </p>
+              </div>
+ 
+              <div className="rounded-2xl border border-border bg-secondary/40 p-4 space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tu nueva key</p>
+                <RevealValue masked={newKey.maskedValue} full={newKey.fullValue} />
+              </div>
+ 
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/30">
+                <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+                <p className="text-xs text-amber-800 dark:text-amber-400 leading-relaxed">
+                  Guardala en un lugar seguro. Tratala como una contraseña — nunca la compartas ni la expongas en código fuente.
+                </p>
+              </div>
+ 
+              <button
+                onClick={handleDone}
+                className="flex w-full h-10 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] transition-all"
+              >
+                Listo, la guardé <Check className="size-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
+  )
+}
+ 
+// ─── Key Card ──────────────────────────────────────────────────────────────────
+ 
+function KeyCard({
+  item,
+  onEdit,
+  onDelete,
+}: {
+  item: SensitiveKey
+  onEdit:   (item: SensitiveKey) => void
+  onDelete: (item: SensitiveKey) => void
+}) {
+  const meta = TYPE_META[item.type]
+  const Icon = meta.icon
+ 
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+      className="rounded-2xl border border-border bg-card p-5 space-y-4"
+    >
+      {/* Header row */}
+      <div className="flex items-start gap-3">
+        <div className={`flex size-9 shrink-0 items-center justify-center rounded-xl border ${meta.color}`}>
+          <Icon className="size-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-foreground text-sm">{item.name}</p>
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${meta.color}`}>
+              {meta.label}
+            </span>
+          </div>
+          {item.description && (
+            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{item.description}</p>
+          )}
+        </div>
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => onEdit(item)}
+            title="Editar"
+            className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(item)}
+            title="Revocar"
+            className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-all hover:border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
+      </div>
+ 
+      {/* Value */}
+      <RevealValue masked={item.maskedValue} full={item.fullValue} />
+ 
+      {/* Permissions + meta */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {item.permissions.map(p => <PermBadge key={p} perm={p} />)}
+        </div>
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span>Creada {formatDate(item.createdAt)}</span>
+          {item.lastUsedAt && <span>· Usada {relativeTime(item.lastUsedAt)}</span>}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+ 
+// ─── Page ──────────────────────────────────────────────────────────────────────
+ 
+export default function ApiKeysPage() {
+  const router  = useRouter()
+  const { profile, loading, firebaseUser } = useAuth()
+ 
+  const [keys,         setKeys]         = useState<SensitiveKey[]>(MOCK_KEYS)
+  const [showCreate,   setShowCreate]   = useState(false)
+  const [editTarget,   setEditTarget]   = useState<SensitiveKey | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<SensitiveKey | null>(null)
+ 
+  // Filter by type for tabs
+  const [tab, setTab] = useState<'all' | KeyType>('all')
+  const filtered = tab === 'all' ? keys : keys.filter(k => k.type === tab)
+ 
+  if (!loading && !firebaseUser) {
+    router.replace('/')
+    return null
+  }
+ 
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+ 
+  const handleCreate = (key: SensitiveKey) => setKeys(prev => [key, ...prev])
+ 
+  const handleSaveEdit = (updated: Partial<SensitiveKey>) => {
+    if (!editTarget) return
+    setKeys(prev => prev.map(k => k.id === editTarget.id ? { ...k, ...updated } : k))
+    setEditTarget(null)
+  }
+ 
+  const handleDelete = () => {
+    if (!deleteTarget) return
+    setKeys(prev => prev.filter(k => k.id !== deleteTarget.id))
+    setDeleteTarget(null)
+  }
+ 
+  const tabs: { id: 'all' | KeyType; label: string; count: number }[] = [
+    { id: 'all',               label: 'Todas',                count: keys.length },
+    { id: 'api_key',           label: 'API keys',             count: keys.filter(k => k.type === 'api_key').length },
+    { id: 'integration_token', label: 'Tokens de integración', count: keys.filter(k => k.type === 'integration_token').length },
+  ]
+ 
+  return (
+    <>
+      <main className="min-h-screen bg-background pt-20 pb-16">
+        <div className="mx-auto max-w-3xl px-4 lg:px-8">
+ 
+          {/* ── Header ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className="mb-8"
+          >
+            <button
+              onClick={() => router.back()}
+              className="mb-5 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="size-4" /> Volver
+            </button>
+ 
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10">
+                  <Lock className="size-5 text-primary" />
+                </div>
+                <div>
+                  <h1 className="font-serif text-2xl text-foreground md:text-3xl">Datos sensibles</h1>
+                  <p className="text-sm text-muted-foreground">API keys y tokens de integración</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex shrink-0 items-center gap-2 h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] transition-all"
+              >
+                <Plus className="size-4" /> Nueva
+              </button>
+            </div>
+          </motion.div>
+ 
+          {/* ── Warning banner ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.06, type: 'spring', stiffness: 300, damping: 28 }}
+            className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 dark:border-amber-900/50 dark:bg-amber-950/20"
+          >
+            <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+            <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
+              Tratá estas credenciales como contraseñas. No las expongas en código fuente, logs ni repositorios públicos.
+            </p>
+          </motion.div>
+ 
+          {/* ── Tabs ── */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6 flex gap-1 rounded-xl border border-border bg-secondary/50 p-1"
+          >
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  tab === t.id
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t.label}
+                {t.count > 0 && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    tab === t.id ? 'bg-primary/10 text-primary' : 'bg-border text-muted-foreground'
+                  }`}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </motion.div>
+ 
+          {/* ── Key list ── */}
+          <AnimatePresence mode="popLayout">
+            {filtered.length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="rounded-2xl border border-dashed border-border bg-secondary/30 px-6 py-12 text-center"
+              >
+                <Key className="mx-auto size-8 text-muted-foreground/40" />
+                <p className="mt-3 text-sm font-medium text-foreground">No hay credenciales en esta categoría</p>
+                <p className="mt-1 text-xs text-muted-foreground">Creá una nueva con el botón de arriba</p>
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="mt-5 inline-flex items-center gap-2 h-9 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all"
+                >
+                  <Plus className="size-3.5" /> Nueva credencial
+                </button>
+              </motion.div>
+            ) : (
+              <div className="space-y-3">
+                {filtered.map(item => (
+                  <KeyCard
+                    key={item.id}
+                    item={item}
+                    onEdit={setEditTarget}
+                    onDelete={setDeleteTarget}
+                  />
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+ 
+        </div>
+      </main>
+ 
+      {/* ── Modals ── */}
+      <AnimatePresence>
+        {showCreate && (
+          <CreateKeyModal
+            onClose={() => setShowCreate(false)}
+            onCreate={handleCreate}
+          />
+        )}
+        {editTarget && (
+          <EditDrawer
+            keyItem={editTarget}
+            onClose={() => setEditTarget(null)}
+            onSaved={handleSaveEdit}
+          />
+        )}
+        {deleteTarget && (
+          <DeleteModal
+            keyItem={deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={handleDelete}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
+</file>
+
 <file path="components.json">
 {
   "$schema": "https://ui.shadcn.com/schema.json",
@@ -1082,6 +2123,30 @@ export default function Page() {
     "hooks": "@/hooks"
   },
   "iconLibrary": "lucide"
+}
+</file>
+
+<file path="components/auth-provider-wrapper.tsx">
+'use client'
+
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { AuthProvider as BaseAuthProvider } from '@/context/auth-context'
+import type { ReactNode } from 'react'
+
+function AuthProviderInner({ children }: { children: ReactNode }) {
+  const searchParams = useSearchParams()
+  const refCode = searchParams?.get('ref') ?? undefined
+  return <BaseAuthProvider refCode={refCode}>{children}</BaseAuthProvider>
+}
+
+// Suspense es obligatorio porque useSearchParams requiere un boundary
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <AuthProviderInner>{children}</AuthProviderInner>
+    </Suspense>
+  )
 }
 </file>
 
@@ -1150,6 +2215,516 @@ export function BottomTabBar() {
         })}
       </div>
     </motion.nav>
+  )
+}
+</file>
+
+<file path="components/collaborators-section.tsx">
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Users, UserPlus, Mail, Check, X, Trash2, Loader2,
+  ChevronDown, ChevronUp, Copy, Clock, ShieldCheck,
+  AlertCircle, RefreshCw,
+} from 'lucide-react'
+import {
+  listCollaborators,
+  inviteCollaborator,
+  updateCollaboratorPermissions,
+  removeCollaborator,
+} from '@/lib/api'
+import type { Collaborator, CollaboratorPermissions } from '@/lib/types'
+
+// ─── Permisos disponibles ─────────────────────────────────────────────────────
+
+const PERMISSION_LABELS: { key: keyof CollaboratorPermissions; label: string; description: string }[] = [
+  { key: 'canViewListings',        label: 'Ver propiedades',          description: 'Puede ver el listado de propiedades' },
+  { key: 'canCreateListings',      label: 'Crear propiedades',        description: 'Puede agregar nuevas propiedades' },
+  { key: 'canEditListings',        label: 'Editar propiedades',       description: 'Puede modificar propiedades existentes' },
+  { key: 'canDeleteListings',      label: 'Eliminar propiedades',     description: 'Puede eliminar propiedades' },
+  { key: 'canViewStats',           label: 'Ver estadísticas',         description: 'Acceso a analytics y reportes' },
+  { key: 'canManageLeads',         label: 'Gestionar clientes',       description: 'Puede ver y gestionar leads' },
+  { key: 'canManageCollaborators', label: 'Gestionar colaboradores',  description: 'Puede invitar y remover colaboradores' },
+]
+
+const DEFAULT_PERMISSIONS: CollaboratorPermissions = {
+  canViewListings: true,
+  canCreateListings: false,
+  canEditListings: false,
+  canDeleteListings: false,
+  canViewStats: false,
+  canManageLeads: false,
+  canManageCollaborators: false,
+}
+
+// ─── Permission Toggle ─────────────────────────────────────────────────────────
+
+function PermissionToggle({
+  permKey,
+  label,
+  description,
+  value,
+  onChange,
+  disabled,
+}: {
+  permKey: keyof CollaboratorPermissions
+  label: string
+  description: string
+  value: boolean
+  onChange: (key: keyof CollaboratorPermissions, val: boolean) => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => !disabled && onChange(permKey, !value)}
+      disabled={disabled}
+      className={`flex items-center justify-between w-full rounded-xl border px-4 py-3 text-left transition-all ${
+        value
+          ? 'border-primary/30 bg-primary/5'
+          : 'border-border bg-card hover:bg-secondary/50'
+      } disabled:opacity-50 disabled:cursor-not-allowed`}
+    >
+      <div>
+        <p className={`text-sm font-medium ${value ? 'text-primary' : 'text-foreground'}`}>{label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+      </div>
+      <div className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
+        value ? 'border-primary bg-primary' : 'border-border bg-card'
+      }`}>
+        {value && <Check className="size-3 text-primary-foreground" strokeWidth={3} />}
+      </div>
+    </button>
+  )
+}
+
+// ─── Invite Form ───────────────────────────────────────────────────────────────
+
+function InviteForm({ onInvited, onCancel }: { onInvited: (link: string) => void; onCancel: () => void }) {
+  const [email, setEmail] = useState('')
+  const [permissions, setPermissions] = useState<CollaboratorPermissions>({ ...DEFAULT_PERMISSIONS })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const togglePerm = (key: keyof CollaboratorPermissions, val: boolean) =>
+    setPermissions(prev => ({ ...prev, [key]: val }))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await inviteCollaborator({ email: email.trim(), ...permissions })
+      onInvited(res.data.inviteLink)
+    } catch (err: any) {
+      setError(err.message ?? 'Error al enviar la invitación')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <motion.form
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      onSubmit={handleSubmit}
+      className="space-y-5"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-foreground">Invitar colaborador</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Generá un link de invitación para compartir</p>
+        </div>
+        <button type="button" onClick={onCancel}
+          className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
+          <X className="size-4" />
+        </button>
+      </div>
+
+      {/* Email */}
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Mail className="size-3.5 text-muted-foreground" /> Email del colaborador
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="colaborador@ejemplo.com"
+          required
+          className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+        />
+      </div>
+
+      {/* Permisos */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-foreground flex items-center gap-2">
+          <ShieldCheck className="size-3.5 text-muted-foreground" /> Permisos
+        </p>
+        <div className="space-y-2">
+          {PERMISSION_LABELS.map(({ key, label, description }) => (
+            <PermissionToggle
+              key={key}
+              permKey={key}
+              label={label}
+              description={description}
+              value={permissions[key]}
+              onChange={togglePerm}
+            />
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+          <AlertCircle className="size-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button type="button" onClick={onCancel}
+          className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-secondary transition-all">
+          Cancelar
+        </button>
+        <button type="submit" disabled={loading || !email.trim()}
+          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all">
+          {loading ? <><Loader2 className="size-4 animate-spin" /> Generando…</> : <><UserPlus className="size-4" /> Generar link</>}
+        </button>
+      </div>
+    </motion.form>
+  )
+}
+
+// ─── Invite Link Result ────────────────────────────────────────────────────────
+
+function InviteLinkResult({ link, onDone }: { link: string; onDone: () => void }) {
+  const [copied, setCopied] = useState(false)
+
+  const copy = () => {
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="space-y-4"
+    >
+      <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-100">
+          <Check className="size-5 text-emerald-600" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-emerald-800">Link generado</p>
+          <p className="text-xs text-emerald-600 mt-0.5">Válido por 7 días. Compartilo con el colaborador.</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-secondary p-3 space-y-2">
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Link de invitación</p>
+        <div className="flex items-center gap-2">
+          <p className="flex-1 truncate text-xs font-mono text-foreground">{link}</p>
+          <button onClick={copy}
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground hover:bg-secondary transition-all">
+            {copied ? <><Check className="size-3.5 text-primary" /> Copiado</> : <><Copy className="size-3.5" /> Copiar</>}
+          </button>
+        </div>
+      </div>
+
+      <button onClick={onDone}
+        className="flex h-10 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all">
+        Listo
+      </button>
+    </motion.div>
+  )
+}
+
+// ─── Collaborator Row ─────────────────────────────────────────────────────────
+
+function CollaboratorRow({
+  collab,
+  onUpdate,
+  onRemove,
+}: {
+  collab: Collaborator
+  onUpdate: (id: string, perms: Partial<CollaboratorPermissions>) => Promise<void>
+  onRemove: (id: string) => Promise<void>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [permissions, setPermissions] = useState<CollaboratorPermissions>({
+    canViewListings:        collab.canViewListings,
+    canCreateListings:      collab.canCreateListings,
+    canEditListings:        collab.canEditListings,
+    canDeleteListings:      collab.canDeleteListings,
+    canViewStats:           collab.canViewStats,
+    canManageLeads:         collab.canManageLeads,
+    canManageCollaborators: collab.canManageCollaborators,
+  })
+  const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const [dirty, setDirty] = useState(false)
+
+  const togglePerm = (key: keyof CollaboratorPermissions, val: boolean) => {
+    setPermissions(prev => ({ ...prev, [key]: val }))
+    setDirty(true)
+  }
+
+  const savePerms = async () => {
+    setSaving(true)
+    await onUpdate(collab.id, permissions)
+    setSaving(false)
+    setDirty(false)
+  }
+
+  const handleRemove = async () => {
+    if (!confirm(`¿Remover a ${collab.email} como colaborador?`)) return
+    setRemoving(true)
+    await onRemove(collab.id)
+  }
+
+  const copyInviteLink = () => {
+    if (!collab.invitation?.token) return
+    const link = `${window.location.origin}/invite/${collab.invitation.token}`
+    navigator.clipboard.writeText(link)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
+
+  const statusColors = {
+    PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
+    ACTIVE:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+    REMOVED: 'bg-secondary text-muted-foreground border-border',
+  }
+
+  const statusLabels = { PENDING: 'Pendiente', ACTIVE: 'Activo', REMOVED: 'Removido' }
+  const activePermsCount = Object.values(permissions).filter(Boolean).length
+
+  return (
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold text-primary">
+          {collab.email.slice(0, 2).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{collab.email}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {activePermsCount} permiso{activePermsCount !== 1 ? 's' : ''}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusColors[collab.status]}`}>
+            {statusLabels[collab.status]}
+          </span>
+
+          {/* Copiar link si está pendiente */}
+          {collab.status === 'PENDING' && collab.invitation && (
+            <button onClick={copyInviteLink} title="Copiar link de invitación"
+              className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
+              {copiedLink ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+            </button>
+          )}
+
+          <button onClick={() => setExpanded(v => !v)}
+            className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
+            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded: permisos */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-border px-4 py-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Permisos</p>
+              <div className="space-y-2">
+                {PERMISSION_LABELS.map(({ key, label, description }) => (
+                  <PermissionToggle
+                    key={key}
+                    permKey={key}
+                    label={label}
+                    description={description}
+                    value={permissions[key]}
+                    onChange={togglePerm}
+                  />
+                ))}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleRemove}
+                  disabled={removing}
+                  className="flex h-9 items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/5 px-3 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-all"
+                >
+                  {removing ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                  Remover
+                </button>
+                {dirty && (
+                  <button
+                    onClick={savePerms}
+                    disabled={saving}
+                    className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-all"
+                  >
+                    {saving ? <><Loader2 className="size-4 animate-spin" /> Guardando…</> : <><Check className="size-4" /> Guardar cambios</>}
+                  </button>
+                )}
+              </div>
+
+              {/* Info de expiración si es pendiente */}
+              {collab.status === 'PENDING' && collab.invitation && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="size-3.5" />
+                  <span>
+                    Invitación expira el{' '}
+                    {new Date(collab.invitation.expiresAt).toLocaleDateString('es-AR', {
+                      day: 'numeric', month: 'long', year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export function CollaboratorsSection() {
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([])
+  const [loadingList, setLoadingList] = useState(true)
+  const [mode, setMode] = useState<'list' | 'invite' | 'link'>('list')
+  const [generatedLink, setGeneratedLink] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoadingList(true)
+    setError(null)
+    try {
+      const res = await listCollaborators()
+      setCollaborators(res.data)
+    } catch (e: any) {
+      setError(e.message ?? 'Error al cargar colaboradores')
+    } finally {
+      setLoadingList(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const handleInvited = (link: string) => {
+    setGeneratedLink(link)
+    setMode('link')
+    load()
+  }
+
+  const handleUpdate = async (id: string, perms: Partial<CollaboratorPermissions>) => {
+    await updateCollaboratorPermissions(id, perms)
+    await load()
+  }
+
+  const handleRemove = async (id: string) => {
+    await removeCollaborator(id)
+    await load()
+  }
+
+  const active  = collaborators.filter(c => c.status === 'ACTIVE')
+  const pending = collaborators.filter(c => c.status === 'PENDING')
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Users className="size-4 text-muted-foreground" /> Colaboradores
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {active.length} activo{active.length !== 1 ? 's' : ''}{pending.length > 0 ? ` · ${pending.length} pendiente${pending.length !== 1 ? 's' : ''}` : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
+            <RefreshCw className={`size-3.5 ${loadingList ? 'animate-spin' : ''}`} />
+          </button>
+          {mode === 'list' && (
+            <button onClick={() => setMode('invite')}
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-all">
+              <UserPlus className="size-3.5" /> Invitar
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Formulario / Link / Lista */}
+      <AnimatePresence mode="wait">
+        {mode === 'invite' && (
+          <motion.div key="invite" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <InviteForm onInvited={handleInvited} onCancel={() => setMode('list')} />
+          </motion.div>
+        )}
+
+        {mode === 'link' && (
+          <motion.div key="link" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <InviteLinkResult link={generatedLink} onDone={() => setMode('list')} />
+          </motion.div>
+        )}
+
+        {mode === 'list' && (
+          <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+            {error && (
+              <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+                <AlertCircle className="size-4 shrink-0 text-destructive" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
+            {loadingList ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : collaborators.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border bg-secondary/30 px-6 py-8 text-center">
+                <Users className="mx-auto size-8 text-muted-foreground/50" />
+                <p className="mt-3 text-sm font-medium text-foreground">Sin colaboradores todavía</p>
+                <p className="mt-1 text-xs text-muted-foreground">Invitá a tu equipo para trabajar juntos.</p>
+                <button onClick={() => setMode('invite')}
+                  className="mt-4 flex items-center gap-2 mx-auto h-9 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all">
+                  <UserPlus className="size-3.5" /> Invitar primer colaborador
+                </button>
+              </div>
+            ) : (
+              collaborators.map(c => (
+                <CollaboratorRow
+                  key={c.id}
+                  collab={c}
+                  onUpdate={handleUpdate}
+                  onRemove={handleRemove}
+                />
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 </file>
@@ -1361,339 +2936,6 @@ export function Footer() {
         </div>
       </div>
     </footer>
-  )
-}
-</file>
-
-<file path="components/login-modal.tsx">
-'use client'
-
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useIsMobile } from '@/components/ui/use-mobile'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-} from '@/components/ui/drawer'
-import {
-  signInWithGoogle,
-  signInWithApple,
-  signInWithFacebook,
-} from '@/lib/firebase'
-import { Loader2 } from 'lucide-react'
-
-interface LoginModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
-
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-    </svg>
-  )
-}
-
-function AppleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden="true">
-      <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.53-3.23 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-    </svg>
-  )
-}
-
-function FacebookIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" fill="#1877F2" />
-    </svg>
-  )
-}
-
-type Provider = 'google' | 'apple' | 'facebook'
-
-function AuthButtons({ onSuccess }: { onSuccess: () => void }) {
-  const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleLogin = async (provider: Provider) => {
-    setLoadingProvider(provider)
-    setError(null)
-    try {
-      if (provider === 'google')   await signInWithGoogle()
-      if (provider === 'apple')    await signInWithApple()
-      if (provider === 'facebook') await signInWithFacebook()
-      onSuccess()
-    } catch (err: any) {
-      // Ignorar cancelación del popup
-      if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
-        setError('Error al iniciar sesión. Intentá de nuevo.')
-      }
-    } finally {
-      setLoadingProvider(null)
-    }
-  }
-
-  const buttons = [
-    { provider: 'google'   as Provider, icon: <GoogleIcon />,   label: 'Continuar con Google',   style: 'border border-border bg-card text-card-foreground hover:bg-secondary' },
-    { provider: 'apple'    as Provider, icon: <AppleIcon />,    label: 'Continuar con Apple',    style: 'bg-foreground text-background hover:opacity-90' },
-    { provider: 'facebook' as Provider, icon: <FacebookIcon />, label: 'Continuar con Facebook', style: 'border border-border bg-card text-card-foreground hover:bg-secondary' },
-  ]
-
-  return (
-    <div className="flex flex-col gap-3 px-1">
-      {buttons.map(({ provider, icon, label, style }) => {
-        const isLoading = loadingProvider === provider
-        return (
-          <button
-            key={provider}
-            onClick={() => handleLogin(provider)}
-            disabled={!!loadingProvider}
-            className={`flex h-12 w-full items-center justify-center gap-3 rounded-lg text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] ${style}`}
-          >
-            {isLoading ? <Loader2 className="size-5 animate-spin" /> : icon}
-            <span>{isLoading ? 'Conectando…' : label}</span>
-          </button>
-        )
-      })}
-
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mt-1 text-center text-xs text-destructive"
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
-
-      <p className="mt-2 text-center text-xs leading-relaxed text-muted-foreground">
-        {'Al continuar, aceptás nuestros '}
-        <a href="#" className="underline hover:text-foreground">Términos de Servicio</a>
-        {' y '}
-        <a href="#" className="underline hover:text-foreground">Política de Privacidad</a>
-      </p>
-    </div>
-  )
-}
-
-export function LoginModal({ open, onOpenChange }: LoginModalProps) {
-  const isMobile = useIsMobile()
-  const router   = useRouter()
-
-  const handleSuccess = () => {
-    onOpenChange(false)
-    // El AuthProvider detecta el cambio de estado y hace sync automáticamente.
-    // Redirigimos al perfil donde el usuario puede configurar su cuenta.
-    router.push('/profile')
-  }
-
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
-          <DrawerHeader className="text-center">
-            <DrawerTitle className="font-serif text-xl text-foreground">Bienvenido</DrawerTitle>
-            <DrawerDescription className="text-muted-foreground">
-              Iniciá sesión para acceder a tu cuenta.
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="p-4 pb-8">
-            <AuthButtons onSuccess={handleSuccess} />
-          </div>
-        </DrawerContent>
-      </Drawer>
-    )
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-border/60 bg-card sm:max-w-md">
-        <DialogHeader className="text-center">
-          <DialogTitle className="font-serif text-2xl text-foreground">Bienvenido</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            Iniciá sesión para acceder a tu cuenta.
-          </DialogDescription>
-        </DialogHeader>
-        <AuthButtons onSuccess={handleSuccess} />
-      </DialogContent>
-    </Dialog>
-  )
-}
-</file>
-
-<file path="components/navbar.tsx">
-'use client'
-
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { Menu, X, LogOut, User } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { LoginModal } from '@/components/login-modal'
-import { useAuth } from '@/context/auth-context'
-
-const navLinks = [
-  { label: 'Features',  href: '#features'  },
-  { label: 'Pricing',   href: '#pricing'   },
-  { label: 'Reviews',   href: '#reviews'   },
-  { label: 'Contact',   href: '#contact'   },
-]
-
-export function Navbar() {
-  const [loginOpen, setLoginOpen]       = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { firebaseUser, profile, logout } = useAuth()
-  const router = useRouter()
-
-  const initials = profile?.email
-    ? profile.email.slice(0, 2).toUpperCase()
-    : firebaseUser?.email?.slice(0, 2).toUpperCase() ?? 'U'
-
-  const photoURL = firebaseUser?.photoURL ?? undefined
-
-  return (
-    <>
-      <motion.header
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed top-0 right-0 left-0 z-50 border-b border-border/40 backdrop-blur-xl"
-        style={{ backgroundColor: 'rgba(245, 240, 235, 0.8)' }}
-      >
-        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:h-18 lg:px-8">
-          {/* Logo */}
-          <a href="/" className="flex items-center gap-2">
-            <span className="font-serif text-xl tracking-tight text-foreground md:text-2xl">
-              Propiedad
-            </span>
-          </a>
-
-          {/* Desktop Nav Links */}
-          <div className="hidden items-center gap-8 md:flex">
-            {navLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="flex h-12 w-12 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary md:hidden"
-              aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
-            >
-              {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-            </button>
-
-            {/* Avatar / Login trigger */}
-            {firebaseUser ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="flex h-12 w-12 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95"
-                    aria-label="Menú de usuario"
-                  >
-                    <Avatar className="size-9 border-2 border-primary/20">
-                      {photoURL && <AvatarImage src={photoURL} alt="Avatar" />}
-                      <AvatarFallback className="bg-primary/10 font-medium text-primary">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <div className="px-2 py-1.5">
-                    <p className="text-xs text-muted-foreground truncate">
-                      {profile?.email ?? firebaseUser.email}
-                    </p>
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push('/profile')}>
-                    <User className="size-4" />
-                    Mi perfil
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={logout}
-                  >
-                    <LogOut className="size-4" />
-                    Cerrar sesión
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <button
-                onClick={() => setLoginOpen(true)}
-                className="flex h-12 w-12 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95"
-                aria-label="Iniciar sesión"
-              >
-                <Avatar className="size-9 border-2 border-primary/20">
-                  <AvatarFallback className="bg-primary/10 font-medium text-primary">
-                    U
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            )}
-          </div>
-        </nav>
-
-        {/* Mobile dropdown */}
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="border-t border-border/40 px-4 pb-4 md:hidden"
-          >
-            {navLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="flex h-12 items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {link.label}
-              </a>
-            ))}
-          </motion.div>
-        )}
-      </motion.header>
-
-      <LoginModal open={loginOpen} onOpenChange={setLoginOpen} />
-    </>
   )
 }
 </file>
@@ -8800,6 +10042,113 @@ function useToast() {
 export { useToast, toast }
 </file>
 
+<file path="context/auth-context.tsx">
+'use client'
+
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
+} from 'react'
+import { auth, onAuthStateChanged, signOut, type User } from '@/lib/firebase'
+import { syncUser, getMe } from '@/lib/api'
+import type { UserProfile } from '@/lib/types'
+
+interface AuthContextValue {
+  firebaseUser: User | null
+  profile: UserProfile | null
+  loading: boolean
+  busy: boolean
+  refreshProfile: () => Promise<void>
+  logout: () => Promise<void>
+}
+
+const defaultValue: AuthContextValue = {
+  firebaseUser:   null,
+  profile:        null,
+  loading:        true,  // true hasta que Firebase resuelva
+  busy:           false,
+  refreshProfile: async () => {},
+  logout:         async () => {},
+}
+
+const AuthContext = createContext<AuthContextValue>(defaultValue)
+
+export function useAuth(): AuthContextValue {
+  return useContext(AuthContext)
+}
+
+interface AuthProviderProps {
+  children: ReactNode
+  refCode?: string
+}
+
+export function AuthProvider({ children, refCode }: AuthProviderProps) {
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null)
+  const [profile, setProfile]           = useState<UserProfile | null>(null)
+  const [loading, setLoading]           = useState(true)
+  const [busy, setBusy]                 = useState(false)
+
+  const refreshProfile = useCallback(async () => {
+    try {
+      const res = await getMe()
+      setProfile(res.data)
+    } catch {
+      setProfile(null)
+    }
+  }, [])
+
+  const logout = useCallback(async () => {
+    await signOut()
+    setProfile(null)
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user)
+
+      if (user) {
+        setBusy(true)
+        try {
+          const res = await syncUser(refCode)
+          setProfile(res.data)
+        } catch {
+          // Si el backend falla, intentar getMe como fallback
+          try {
+            await refreshProfile()
+          } catch {
+            // Si también falla getMe, dejamos profile en null
+            // pero igual liberamos el loading para que la UI no quede trabada
+            setProfile(null)
+          }
+        } finally {
+          setBusy(false)
+        }
+      } else {
+        // Usuario no autenticado — limpiar perfil
+        setProfile(null)
+      }
+
+      // SIEMPRE liberar loading, sin importar si el backend falló o no
+      setLoading(false)
+    })
+
+    return unsubscribe
+  }, [refCode, refreshProfile])
+
+  return (
+    <AuthContext.Provider
+      value={{ firebaseUser, profile, loading, busy, refreshProfile, logout }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}
+</file>
+
 <file path="hooks/use-mobile.ts">
 import * as React from 'react'
 
@@ -9016,6 +10365,349 @@ function useToast() {
 export { useToast, toast }
 </file>
 
+<file path="lib/api.ts">
+// lib/api.ts
+// ─── Cliente HTTP base + endpoints de Auth, Users, Organizations, Affiliates ──
+import { getIdToken } from '@/lib/firebase'
+import type {
+  UserProfile,
+  Organization,
+  AffiliateReferral,
+  Collaborator,
+  InvitationInfo,
+  InviteCollaboratorPayload,
+  CollaboratorPermissions,
+} from '@/lib/types'
+
+ 
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
+
+// ─── Fetch helpers ────────────────────────────────────────────────────────────
+
+/** Petición autenticada — adjunta el Bearer token de Firebase */
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const token = await getIdToken()
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
+  })
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(error?.message ?? `Error ${res.status}`)
+  }
+
+  return res.json() as Promise<T>
+}
+
+/** Petición pública — sin token (para rutas como GET /invitations/:token) */
+export async function apiFetchPublic<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(error?.message ?? `Error ${res.status}`)
+  }
+
+  return res.json() as Promise<T>
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+/** POST /auth/sync — sincroniza el usuario con la DB.
+ *  Pasar refCode si viene de un link de afiliado (?ref=). */
+export async function syncUser(refCode?: string) {
+  const qs = refCode ? `?ref=${encodeURIComponent(refCode)}` : ''
+  return apiFetch<{ success: boolean; isNew: boolean; data: UserProfile }>(
+    `/auth/sync${qs}`,
+    { method: 'POST' },
+  )
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+/** GET /users/me */
+export async function getMe() {
+  return apiFetch<{ success: boolean; data: UserProfile }>('/users/me')
+}
+
+/** PATCH /users/select-role */
+export async function selectRole(role: 'owner' | 'affiliate') {
+  return apiFetch<{ success: boolean; message: string; data: UserProfile }>(
+    '/users/select-role',
+    { method: 'PATCH', body: JSON.stringify({ role }) },
+  )
+}
+
+// ─── Organizations ────────────────────────────────────────────────────────────
+
+/** GET /organizations/me */
+export async function getMyOrganization() {
+  return apiFetch<{ success: boolean; data: Organization }>('/organizations/me')
+}
+
+/** PATCH /organizations/me */
+export async function updateMyOrganization(
+  data: Partial<Omit<Organization, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>,
+) {
+  return apiFetch<{ success: boolean; message: string; data: Organization }>(
+    '/organizations/me',
+    { method: 'PATCH', body: JSON.stringify(data) },
+  )
+}
+
+// ─── Affiliates ───────────────────────────────────────────────────────────────
+
+/** GET /affiliates/me */
+export async function getMyAffiliateProfile() {
+  return apiFetch<{
+    success: boolean
+    data: {
+      affiliateCode: string
+      balance: string
+      referralCount: number
+      createdAt: string
+    }
+  }>('/affiliates/me')
+}
+
+/** GET /affiliates/me/referrals */
+export async function getMyReferrals() {
+  return apiFetch<{
+    success: boolean
+    data: {
+      affiliateCode: string
+      total: number
+      referrals: AffiliateReferral[]
+    }
+  }>('/affiliates/me/referrals')
+}
+ 
+// ─── Collaborators (owner) ────────────────────────────────────────────────────
+ 
+/** GET /organizations/me/collaborators */
+export async function listCollaborators() {
+  return apiFetch<{ success: boolean; data: Collaborator[] }>(
+    '/organizations/me/collaborators',
+  )
+}
+ 
+/** POST /organizations/me/collaborators — invita por email y genera link */
+export async function inviteCollaborator(payload: InviteCollaboratorPayload) {
+  return apiFetch<{
+    success: boolean
+    message: string
+    data: {
+      collaborator: Collaborator
+      inviteLink: string
+      expiresAt: string
+    }
+  }>('/organizations/me/collaborators', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+ 
+/** PATCH /organizations/me/collaborators/:id — actualiza permisos */
+export async function updateCollaboratorPermissions(
+  collaboratorId: string,
+  permissions: Partial<CollaboratorPermissions>,
+) {
+  return apiFetch<{ success: boolean; message: string; data: Collaborator }>(
+    `/organizations/me/collaborators/${collaboratorId}`,
+    { method: 'PATCH', body: JSON.stringify(permissions) },
+  )
+}
+ 
+/** DELETE /organizations/me/collaborators/:id — remueve colaborador */
+export async function removeCollaborator(collaboratorId: string) {
+  return apiFetch<{ success: boolean; message: string }>(
+    `/organizations/me/collaborators/${collaboratorId}`,
+    { method: 'DELETE' },
+  )
+}
+ 
+// ─── Invitations (colaborador) ────────────────────────────────────────────────
+ 
+/** GET /invitations/:token — info pública de la invitación (sin auth) */
+export async function getInvitationInfo(token: string) {
+  return apiFetchPublic<{ success: boolean; data: InvitationInfo }>(
+    `/invitations/${token}`,
+  )
+}
+ 
+/** POST /invitations/:token/accept — el colaborador logueado acepta */
+export async function acceptInvitation(token: string) {
+  return apiFetch<{ success: boolean; message: string }>(
+    `/invitations/${token}/accept`,
+    { method: 'POST' },
+  )
+}
+</file>
+
+<file path="lib/firebase.ts">
+import { initializeApp, getApps, getApp } from 'firebase/app'
+import {
+  getAuth,
+  GoogleAuthProvider,
+  OAuthProvider,
+  FacebookAuthProvider,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  type User,
+} from 'firebase/auth'
+
+// ⚠️  Completar con tus credenciales de Firebase Console →
+// Project Settings → General → Your apps → Web app → Config
+const firebaseConfig = {
+  apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId:         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  storageBucket:     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+}
+
+// Singleton — evita reinicializar en HMR
+const app  = getApps().length ? getApp() : initializeApp(firebaseConfig)
+const auth = getAuth(app)
+
+// Providers
+const googleProvider   = new GoogleAuthProvider()
+const appleProvider    = new OAuthProvider('apple.com')
+const facebookProvider = new FacebookAuthProvider()
+
+appleProvider.addScope('email')
+appleProvider.addScope('name')
+
+// ─── Helpers de auth ─────────────────────────────────────────────────────────
+
+export async function signInWithGoogle() {
+  return signInWithPopup(auth, googleProvider)
+}
+
+export async function signInWithApple() {
+  return signInWithPopup(auth, appleProvider)
+}
+
+export async function signInWithFacebook() {
+  return signInWithPopup(auth, facebookProvider)
+}
+
+export async function signOut() {
+  return firebaseSignOut(auth)
+}
+
+export function getIdToken(forceRefresh = false): Promise<string> {
+  if (!auth.currentUser) throw new Error('No hay usuario autenticado')
+  return auth.currentUser.getIdToken(forceRefresh)
+}
+
+export { auth, onAuthStateChanged, type User }
+</file>
+
+<file path="lib/types.ts">
+// lib/types.ts
+// ─── Tipos centralizados de la aplicación ────────────────────────────────────
+
+// ─── User & Auth ──────────────────────────────────────────────────────────────
+
+export interface Organization {
+  id: string
+  userId: string
+  name: string | null
+  description: string | null
+  logoUrl: string | null
+  website: string | null
+  phone: string | null
+  address: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AffiliateData {
+  id: string
+  userId: string
+  balance: string
+  referralCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UserProfile {
+  id: string
+  firebaseUid: string
+  email: string
+  isOwner: boolean
+  isAffiliate: boolean
+  affiliateCode: string | null
+  referredByCode: string | null
+  createdAt: string
+  updatedAt: string
+  organization: Organization | null
+  affiliateData: AffiliateData | null
+}
+
+export interface AffiliateReferral {
+  id: string
+  email: string
+  isOwner: boolean
+  isAffiliate: boolean
+  createdAt: string
+}
+
+// ─── Collaborators ────────────────────────────────────────────────────────────
+
+export type CollaboratorStatus = 'PENDING' | 'ACTIVE' | 'REMOVED'
+
+export interface CollaboratorPermissions {
+  canViewListings: boolean
+  canCreateListings: boolean
+  canEditListings: boolean
+  canDeleteListings: boolean
+  canViewStats: boolean
+  canManageLeads: boolean
+  canManageCollaborators: boolean
+}
+
+export interface Collaborator extends CollaboratorPermissions {
+  id: string
+  organizationId: string
+  userId: string | null
+  email: string
+  status: CollaboratorStatus
+  invitedAt: string
+  acceptedAt: string | null
+  updatedAt: string
+  user: { email: string; firebaseUid: string } | null
+  invitation: {
+    expiresAt: string
+    usedAt: string | null
+    token: string
+  } | null
+}
+
+export interface InvitationInfo {
+  email: string
+  organization: { id: string; name: string | null; logoUrl: string | null }
+  expiresAt: string
+  permissions: CollaboratorPermissions
+}
+
+export type InviteCollaboratorPayload = { email: string } & Partial<CollaboratorPermissions>
+</file>
+
 <file path="lib/utils.ts">
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
@@ -9046,83 +10738,6 @@ const nextConfig = {
 }
 
 export default nextConfig
-</file>
-
-<file path="package.json">
-{
-  "name": "my-project",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint ."
-  },
-  "dependencies": {
-    "@hookform/resolvers": "^3.9.1",
-    "@radix-ui/react-accordion": "1.2.12",
-    "@radix-ui/react-alert-dialog": "1.1.15",
-    "@radix-ui/react-aspect-ratio": "1.1.8",
-    "@radix-ui/react-avatar": "1.1.11",
-    "@radix-ui/react-checkbox": "1.3.3",
-    "@radix-ui/react-collapsible": "1.1.12",
-    "@radix-ui/react-context-menu": "2.2.16",
-    "@radix-ui/react-dialog": "1.1.15",
-    "@radix-ui/react-dropdown-menu": "2.1.16",
-    "@radix-ui/react-hover-card": "1.1.15",
-    "@radix-ui/react-label": "2.1.8",
-    "@radix-ui/react-menubar": "1.1.16",
-    "@radix-ui/react-navigation-menu": "1.2.14",
-    "@radix-ui/react-popover": "1.1.15",
-    "@radix-ui/react-progress": "1.1.8",
-    "@radix-ui/react-radio-group": "1.3.8",
-    "@radix-ui/react-scroll-area": "1.2.10",
-    "@radix-ui/react-select": "2.2.6",
-    "@radix-ui/react-separator": "1.1.8",
-    "@radix-ui/react-slider": "1.3.6",
-    "@radix-ui/react-slot": "1.2.4",
-    "@radix-ui/react-switch": "1.2.6",
-    "@radix-ui/react-tabs": "1.1.13",
-    "@radix-ui/react-toast": "1.2.15",
-    "@radix-ui/react-toggle": "1.1.10",
-    "@radix-ui/react-toggle-group": "1.1.11",
-    "@radix-ui/react-tooltip": "1.2.8",
-    "@vercel/analytics": "1.6.1",
-    "autoprefixer": "^10.4.20",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "cmdk": "1.1.1",
-    "date-fns": "4.1.0",
-    "embla-carousel-react": "8.6.0",
-    "firebase": "^12.11.0",
-    "framer-motion": "^11.15.0",
-    "input-otp": "1.4.2",
-    "lucide-react": "^0.564.0",
-    "next": "16.1.6",
-    "next-themes": "^0.4.6",
-    "react": "19.2.4",
-    "react-day-picker": "9.13.2",
-    "react-dom": "19.2.4",
-    "react-hook-form": "^7.54.1",
-    "react-resizable-panels": "^2.1.7",
-    "recharts": "2.15.0",
-    "sonner": "^1.7.1",
-    "tailwind-merge": "^3.3.1",
-    "vaul": "^1.1.2",
-    "zod": "^3.24.1"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.0",
-    "@types/node": "^22",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "postcss": "^8.5",
-    "tailwindcss": "^4.2.0",
-    "tw-animate-css": "1.3.3",
-    "typescript": "5.7.3"
-  }
-}
 </file>
 
 <file path="postcss.config.mjs">
@@ -9342,6 +10957,456 @@ export default config
   "exclude": [
     "node_modules"
   ]
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata, Viewport } from 'next'
+import { DM_Sans, DM_Serif_Display } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
+import { AuthProvider } from '@/components/auth-provider-wrapper'
+import './globals.css'
+
+const dmSans  = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' })
+const dmSerif = DM_Serif_Display({ weight: '400', subsets: ['latin'], variable: '--font-dm-serif' })
+
+export const metadata: Metadata = {
+  title: 'Propiedad - The Real Estate Platform for Modern Agencies',
+  description: 'Propiedad is the all-in-one SaaS platform that helps real estate agencies manage listings, close deals faster, and grow their business.',
+}
+
+export const viewport: Viewport = {
+  themeColor: '#f5f0eb',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en" suppressHydrationWarning className={`${dmSans.variable} ${dmSerif.variable}`}>
+      <body className="font-sans antialiased" suppressHydrationWarning>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+        <Analytics />
+      </body>
+    </html>
+  )
+}
+</file>
+
+<file path="components/login-modal.tsx">
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useIsMobile } from '@/components/ui/use-mobile'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+} from '@/components/ui/drawer'
+import {
+  signInWithGoogle,
+  signInWithApple,
+  signInWithFacebook,
+} from '@/lib/firebase'
+import { Loader2 } from 'lucide-react'
+
+interface LoginModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
+  )
+}
+
+function AppleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden="true">
+      <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.53-3.23 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+    </svg>
+  )
+}
+
+function FacebookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" fill="#1877F2" />
+    </svg>
+  )
+}
+
+type Provider = 'google' | 'apple' | 'facebook'
+
+function AuthButtons({ onSuccess }: { onSuccess: () => void }) {
+  const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleLogin = async (provider: Provider) => {
+    setLoadingProvider(provider)
+    setError(null)
+    try {
+      if (provider === 'google')   await signInWithGoogle()
+      if (provider === 'apple')    await signInWithApple()
+      if (provider === 'facebook') await signInWithFacebook()
+      onSuccess()
+    } catch (err: any) {
+      // Ignorar cancelación del popup
+      if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+        setError('Error al iniciar sesión. Intentá de nuevo.')
+      }
+    } finally {
+      setLoadingProvider(null)
+    }
+  }
+
+  const buttons = [
+    { provider: 'google'   as Provider, icon: <GoogleIcon />,   label: 'Continuar con Google',   style: 'border border-border bg-card text-card-foreground hover:bg-secondary' },
+    { provider: 'apple'    as Provider, icon: <AppleIcon />,    label: 'Continuar con Apple',    style: 'bg-foreground text-background hover:opacity-90' },
+    { provider: 'facebook' as Provider, icon: <FacebookIcon />, label: 'Continuar con Facebook', style: 'border border-border bg-card text-card-foreground hover:bg-secondary' },
+  ]
+
+  return (
+    <div className="flex flex-col gap-3 px-1">
+      {buttons.map(({ provider, icon, label, style }) => {
+        const isLoading = loadingProvider === provider
+        return (
+          <button
+            key={provider}
+            onClick={() => handleLogin(provider)}
+            disabled={!!loadingProvider}
+            className={`flex h-12 w-full items-center justify-center gap-3 rounded-lg text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] ${style}`}
+          >
+            {isLoading ? <Loader2 className="size-5 animate-spin" /> : icon}
+            <span>{isLoading ? 'Conectando…' : label}</span>
+          </button>
+        )
+      })}
+
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-1 text-center text-xs text-destructive"
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      <p className="mt-2 text-center text-xs leading-relaxed text-muted-foreground">
+        {'Al continuar, aceptás nuestros '}
+        <a href="#" className="underline hover:text-foreground">Términos de Servicio</a>
+        {' y '}
+        <a href="#" className="underline hover:text-foreground">Política de Privacidad</a>
+      </p>
+    </div>
+  )
+}
+
+export function LoginModal({ open, onOpenChange }: LoginModalProps) {
+  const isMobile = useIsMobile()
+  const router   = useRouter()
+
+  const handleSuccess = () => {
+    onOpenChange(false)
+    // El AuthProvider detecta el cambio de estado y hace sync automáticamente.
+    // Redirigimos al perfil donde el usuario puede configurar su cuenta.
+    router.push('/profile')
+  }
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent>
+          <DrawerHeader className="text-center">
+            <DrawerTitle className="font-serif text-xl text-foreground">Bienvenido</DrawerTitle>
+            <DrawerDescription className="text-muted-foreground">
+              Iniciá sesión para acceder a tu cuenta.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 pb-8">
+            <AuthButtons onSuccess={handleSuccess} />
+          </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="border-border/60 bg-card sm:max-w-md">
+        <DialogHeader className="text-center">
+          <DialogTitle className="font-serif text-2xl text-foreground">Bienvenido</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Iniciá sesión para acceder a tu cuenta.
+          </DialogDescription>
+        </DialogHeader>
+        <AuthButtons onSuccess={handleSuccess} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+</file>
+
+<file path="components/navbar.tsx">
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { Menu, X, LogOut, User } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { LoginModal } from '@/components/login-modal'
+import { useAuth } from '@/context/auth-context'
+
+const navLinks = [
+  { label: 'Features',  href: '#features'  },
+  { label: 'Pricing',   href: '#pricing'   },
+  { label: 'Reviews',   href: '#reviews'   },
+  { label: 'Contact',   href: '#contact'   },
+]
+
+export function Navbar() {
+  const [loginOpen, setLoginOpen]       = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { firebaseUser, profile, logout } = useAuth()
+  const router = useRouter()
+
+  const initials = profile?.email
+    ? profile.email.slice(0, 2).toUpperCase()
+    : firebaseUser?.email?.slice(0, 2).toUpperCase() ?? 'U'
+
+  const photoURL = firebaseUser?.photoURL ?? undefined
+
+  return (
+    <>
+      <motion.header
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="fixed top-0 right-0 left-0 z-50 border-b border-border/40 backdrop-blur-xl"
+        style={{ backgroundColor: 'rgba(245, 240, 235, 0.8)' }}
+      >
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:h-18 lg:px-8">
+          {/* Logo */}
+          <a href="/" className="flex items-center gap-2">
+            <span className="font-serif text-xl tracking-tight text-foreground md:text-2xl">
+              Propiedad
+            </span>
+          </a>
+
+          {/* Desktop Nav Links */}
+          <div className="hidden items-center gap-8 md:flex">
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+
+          {/* Right side */}
+          <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="flex h-12 w-12 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary md:hidden"
+              aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
+            >
+              {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            </button>
+
+            {/* Avatar / Login trigger */}
+            {firebaseUser ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex h-12 w-12 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95"
+                    aria-label="Menú de usuario"
+                  >
+                    <Avatar className="size-9 border-2 border-primary/20">
+                      {photoURL && <AvatarImage src={photoURL} alt="Avatar" />}
+                      <AvatarFallback className="bg-primary/10 font-medium text-primary">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-2 py-1.5">
+                    <p className="text-xs text-muted-foreground truncate">
+                      {profile?.email ?? firebaseUser.email}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => router.push('/profile')}>
+                    <User className="size-4" />
+                    Mi perfil
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={logout}
+                  >
+                    <LogOut className="size-4" />
+                    Cerrar sesión
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <button
+                onClick={() => setLoginOpen(true)}
+                className="flex h-12 w-12 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95"
+                aria-label="Iniciar sesión"
+              >
+                <Avatar className="size-9 border-2 border-primary/20">
+                  <AvatarFallback className="bg-primary/10 font-medium text-primary">
+                    U
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            )}
+          </div>
+        </nav>
+
+        {/* Mobile dropdown */}
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-border/40 px-4 pb-4 md:hidden"
+          >
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="flex h-12 items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {link.label}
+              </a>
+            ))}
+          </motion.div>
+        )}
+      </motion.header>
+
+      <LoginModal open={loginOpen} onOpenChange={setLoginOpen} />
+    </>
+  )
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "my-project",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
+    "@nestjs/mapped-types": "*",
+    "@radix-ui/react-accordion": "1.2.12",
+    "@radix-ui/react-alert-dialog": "1.1.15",
+    "@radix-ui/react-aspect-ratio": "1.1.8",
+    "@radix-ui/react-avatar": "1.1.11",
+    "@radix-ui/react-checkbox": "1.3.3",
+    "@radix-ui/react-collapsible": "1.1.12",
+    "@radix-ui/react-context-menu": "2.2.16",
+    "@radix-ui/react-dialog": "1.1.15",
+    "@radix-ui/react-dropdown-menu": "2.1.16",
+    "@radix-ui/react-hover-card": "1.1.15",
+    "@radix-ui/react-label": "2.1.8",
+    "@radix-ui/react-menubar": "1.1.16",
+    "@radix-ui/react-navigation-menu": "1.2.14",
+    "@radix-ui/react-popover": "1.1.15",
+    "@radix-ui/react-progress": "1.1.8",
+    "@radix-ui/react-radio-group": "1.3.8",
+    "@radix-ui/react-scroll-area": "1.2.10",
+    "@radix-ui/react-select": "2.2.6",
+    "@radix-ui/react-separator": "1.1.8",
+    "@radix-ui/react-slider": "1.3.6",
+    "@radix-ui/react-slot": "1.2.4",
+    "@radix-ui/react-switch": "1.2.6",
+    "@radix-ui/react-tabs": "1.1.13",
+    "@radix-ui/react-toast": "1.2.15",
+    "@radix-ui/react-toggle": "1.1.10",
+    "@radix-ui/react-toggle-group": "1.1.11",
+    "@radix-ui/react-tooltip": "1.2.8",
+    "@vercel/analytics": "1.6.1",
+    "autoprefixer": "^10.4.20",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "1.1.1",
+    "date-fns": "4.1.0",
+    "embla-carousel-react": "8.6.0",
+    "firebase": "^12.11.0",
+    "framer-motion": "^11.15.0",
+    "input-otp": "1.4.2",
+    "lucide-react": "^0.564.0",
+    "next": "16.1.6",
+    "next-themes": "^0.4.6",
+    "react": "19.2.4",
+    "react-day-picker": "9.13.2",
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.54.1",
+    "react-resizable-panels": "^2.1.7",
+    "recharts": "2.15.0",
+    "sonner": "^1.7.1",
+    "tailwind-merge": "^3.3.1",
+    "vaul": "^1.1.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.0",
+    "@types/node": "^22",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "postcss": "^8.5",
+    "tailwindcss": "^4.2.0",
+    "tw-animate-css": "1.3.3",
+    "typescript": "5.7.3"
+  }
 }
 </file>
 
