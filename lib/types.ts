@@ -4,47 +4,49 @@
 // ─── User & Auth ──────────────────────────────────────────────────────────────
 
 export interface Organization {
-  id: string
-  userId: string
-  name: string | null
+  id:          string
+  userId:      string
+  name:        string | null
   description: string | null
-  logoUrl: string | null
-  website: string | null
-  phone: string | null
-  address: string | null
-  createdAt: string
-  updatedAt: string
+  logoUrl:     string | null
+  website:     string | null
+  phone:       string | null
+  address:     string | null
+  createdAt:   string
+  updatedAt:   string
 }
 
 export interface AffiliateData {
-  id: string
-  userId: string
-  balance: string
+  id:           string
+  userId:       string
+  balance:      string
   referralCount: number
-  createdAt: string
-  updatedAt: string
+  createdAt:    string
+  updatedAt:    string
 }
 
 export interface UserProfile {
-  id: string
-  firebaseUid: string
-  email: string
-  isOwner: boolean
-  isAffiliate: boolean
-  affiliateCode: string | null
+  id:             string
+  firebaseUid:    string
+  email:          string
+  displayName:    string | null   // ← sincronizado desde Firebase
+  avatarUrl:      string | null   // ← sincronizado desde Firebase
+  isOwner:        boolean
+  isAffiliate:    boolean
+  affiliateCode:  string | null
   referredByCode: string | null
-  createdAt: string
-  updatedAt: string
-  organization: Organization | null
-  affiliateData: AffiliateData | null
+  createdAt:      string
+  updatedAt:      string
+  organization:   Organization | null
+  affiliateData:  AffiliateData | null
 }
 
 export interface AffiliateReferral {
-  id: string
-  email: string
-  isOwner: boolean
+  id:         string
+  email:      string
+  isOwner:    boolean
   isAffiliate: boolean
-  createdAt: string
+  createdAt:  string
 }
 
 // ─── Collaborators ────────────────────────────────────────────────────────────
@@ -52,37 +54,37 @@ export interface AffiliateReferral {
 export type CollaboratorStatus = 'PENDING' | 'ACTIVE' | 'REMOVED'
 
 export interface CollaboratorPermissions {
-  canViewListings: boolean
-  canCreateListings: boolean
-  canEditListings: boolean
-  canDeleteListings: boolean
-  canViewStats: boolean
-  canManageLeads: boolean
+  canViewListings:        boolean
+  canCreateListings:      boolean
+  canEditListings:        boolean
+  canDeleteListings:      boolean
+  canViewStats:           boolean
+  canManageLeads:         boolean
   canManageCollaborators: boolean
 }
 
 export interface Collaborator extends CollaboratorPermissions {
-  id: string
+  id:             string
   organizationId: string
-  userId: string | null
-  email: string
-  status: CollaboratorStatus
-  invitedAt: string
-  acceptedAt: string | null
-  updatedAt: string
-  user: { email: string; firebaseUid: string } | null
+  userId:         string | null
+  email:          string
+  status:         CollaboratorStatus
+  invitedAt:      string
+  acceptedAt:     string | null
+  updatedAt:      string
+  user:           { email: string; firebaseUid: string } | null
   invitation: {
     expiresAt: string
-    usedAt: string | null
-    token: string
+    usedAt:    string | null
+    token:     string
   } | null
 }
 
 export interface InvitationInfo {
-  email: string
+  email:        string
   organization: { id: string; name: string | null; logoUrl: string | null }
-  expiresAt: string
-  permissions: CollaboratorPermissions
+  expiresAt:    string
+  permissions:  CollaboratorPermissions
 }
 
 export type InviteCollaboratorPayload = { email: string } & Partial<CollaboratorPermissions>

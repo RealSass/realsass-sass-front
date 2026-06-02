@@ -3,503 +3,388 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Users, UserPlus, Mail, Check, X, Trash2, Loader2,
-  ChevronDown, ChevronUp, Copy, Clock, ShieldCheck,
-  AlertCircle, RefreshCw,
+  Users, Plus, Trash2, Copy, Check, Loader2,
+  AlertCircle, Mail, ShieldCheck, UserX,
 } from 'lucide-react'
+import { useAuth } from '@/context/auth-context'
 import {
   listCollaborators,
   inviteCollaborator,
-  updateCollaboratorPermissions,
   removeCollaborator,
+  updateCollaboratorPermissions,
 } from '@/lib/api'
+import { getErrorMessage } from '@/lib/errors'
 import type { Collaborator, CollaboratorPermissions } from '@/lib/types'
 
-// ─── Permisos disponibles ─────────────────────────────────────────────────────
-
-const PERMISSION_LABELS: { key: keyof CollaboratorPermissions; label: string; description: string }[] = [
-  { key: 'canViewListings',        label: 'Ver propiedades',          description: 'Puede ver el listado de propiedades' },
-  { key: 'canCreateListings',      label: 'Crear propiedades',        description: 'Puede agregar nuevas propiedades' },
-  { key: 'canEditListings',        label: 'Editar propiedades',       description: 'Puede modificar propiedades existentes' },
-  { key: 'canDeleteListings',      label: 'Eliminar propiedades',     description: 'Puede eliminar propiedades' },
-  { key: 'canViewStats',           label: 'Ver estadísticas',         description: 'Acceso a analytics y reportes' },
-  { key: 'canManageLeads',         label: 'Gestionar clientes',       description: 'Puede ver y gestionar leads' },
-  { key: 'canManageCollaborators', label: 'Gestionar colaboradores',  description: 'Puede invitar y remover colaboradores' },
+const PERMISSION_LABELS: Array<{ key: keyof CollaboratorPermissions; label: string }> = [
+  { key: 'canViewListings',        label: 'Ver propiedades'       },
+  { key: 'canCreateListings',      label: 'Crear propiedades'     },
+  { key: 'canEditListings',        label: 'Editar propiedades'    },
+  { key: 'canDeleteListings',      label: 'Eliminar propiedades'  },
+  { key: 'canViewStats',           label: 'Ver estadísticas'      },
+  { key: 'canManageLeads',         label: 'Gestionar clientes'    },
+  { key: 'canManageCollaborators', label: 'Gestionar colaboradores' },
 ]
 
-const DEFAULT_PERMISSIONS: CollaboratorPermissions = {
-  canViewListings: true,
-  canCreateListings: false,
-  canEditListings: false,
-  canDeleteListings: false,
-  canViewStats: false,
-  canManageLeads: false,
-  canManageCollaborators: false,
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendiente',
+  ACTIVE:  'Activo',
+  REMOVED: 'Removido',
 }
 
-// ─── Permission Toggle ─────────────────────────────────────────────────────────
-
-function PermissionToggle({
-  permKey,
-  label,
-  description,
-  value,
-  onChange,
-  disabled,
-}: {
-  permKey: keyof CollaboratorPermissions
-  label: string
-  description: string
-  value: boolean
-  onChange: (key: keyof CollaboratorPermissions, val: boolean) => void
-  disabled?: boolean
-}) {
+// ── Estado vacío ──────────────────────────────────────────────────────────────
+function EmptyState({ onInvite }: { onInvite: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(permKey, !value)}
-      disabled={disabled}
-      className={`flex items-center justify-between w-full rounded-xl border px-4 py-3 text-left transition-all ${
-        value
-          ? 'border-primary/30 bg-primary/5'
-          : 'border-border bg-card hover:bg-secondary/50'
-      } disabled:opacity-50 disabled:cursor-not-allowed`}
-    >
-      <div>
-        <p className={`text-sm font-medium ${value ? 'text-primary' : 'text-foreground'}`}>{label}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="flex size-14 items-center justify-center rounded-2xl bg-muted">
+        <Users className="size-7 text-muted-foreground" />
       </div>
-      <div className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
-        value ? 'border-primary bg-primary' : 'border-border bg-card'
-      }`}>
-        {value && <Check className="size-3 text-primary-foreground" strokeWidth={3} />}
-      </div>
-    </button>
+      <h3 className="mt-4 font-medium text-foreground">Aún no tenés colaboradores</h3>
+      <p className="mt-1 text-sm text-muted-foreground max-w-xs">
+        Invitá a miembros de tu equipo para que puedan acceder a tu organización.
+      </p>
+      <button
+        onClick={onInvite}
+        className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+      >
+        <Plus className="size-4" />
+        Invitar primer colaborador
+      </button>
+    </div>
   )
 }
 
-// ─── Invite Form ───────────────────────────────────────────────────────────────
+// ── Fila de colaborador ───────────────────────────────────────────────────────
+function CollaboratorRow({
+  collab,
+  onRemove,
+}: {
+  collab: Collaborator
+  onRemove: (id: string) => void
+}) {
+  const [removing, setRemoving] = useState(false)
+  const [copied, setCopied]     = useState(false)
 
-function InviteForm({ onInvited, onCancel }: { onInvited: (link: string) => void; onCancel: () => void }) {
-  const [email, setEmail] = useState('')
-  const [permissions, setPermissions] = useState<CollaboratorPermissions>({ ...DEFAULT_PERMISSIONS })
+  const handleCopy = () => {
+    if (!collab.invitation?.token) return
+    const link = `${window.location.origin}/invite/${collab.invitation.token}`
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleRemove = async () => {
+    if (!confirm(`¿Remover a ${collab.email}?`)) return
+    setRemoving(true)
+    try {
+      await removeCollaborator(collab.id)
+      onRemove(collab.id)
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{collab.email}</p>
+        <p className="text-xs text-muted-foreground">
+          {STATUS_LABELS[collab.status] ?? collab.status}
+        </p>
+      </div>
+
+      <div className="ml-3 flex items-center gap-2">
+        {/* Copiar link si está pendiente */}
+        {collab.status === 'PENDING' && collab.invitation && (
+          <button
+            onClick={handleCopy}
+            title="Copiar link de invitación"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            {copied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
+          </button>
+        )}
+
+        {/* Remover */}
+        {collab.status !== 'REMOVED' && (
+          <button
+            onClick={handleRemove}
+            disabled={removing}
+            title="Remover colaborador"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+          >
+            {removing
+              ? <Loader2 className="size-4 animate-spin" />
+              : <Trash2 className="size-4" />
+            }
+          </button>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Modal de invitación ───────────────────────────────────────────────────────
+function InviteModal({
+  onClose,
+  onInvited,
+}: {
+  onClose: () => void
+  onInvited: (collab: Collaborator, link: string) => void
+}) {
+  const [email, setEmail]   = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]   = useState<string | null>(null)
+  const [perms, setPerms]   = useState<CollaboratorPermissions>({
+    canViewListings:        true,
+    canCreateListings:      false,
+    canEditListings:        false,
+    canDeleteListings:      false,
+    canViewStats:           false,
+    canManageLeads:         false,
+    canManageCollaborators: false,
+  })
 
-  const togglePerm = (key: keyof CollaboratorPermissions, val: boolean) =>
-    setPermissions(prev => ({ ...prev, [key]: val }))
+  const togglePerm = (key: keyof CollaboratorPermissions) =>
+    setPerms((prev) => ({ ...prev, [key]: !prev[key] }))
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     if (!email.trim()) return
     setLoading(true)
     setError(null)
     try {
-      const res = await inviteCollaborator({ email: email.trim(), ...permissions })
-      onInvited(res.data.inviteLink)
-    } catch (err: any) {
-      setError(err.message ?? 'Error al enviar la invitación')
+      const res = await inviteCollaborator({ email: email.trim(), ...perms })
+      onInvited(res.data.collaborator, res.data.inviteLink)
+    } catch (err) {
+      setError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <motion.form
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      onSubmit={handleSubmit}
-      className="space-y-5"
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-foreground">Invitar colaborador</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Generá un link de invitación para compartir</p>
-        </div>
-        <button type="button" onClick={onCancel}
-          className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
-          <X className="size-4" />
-        </button>
-      </div>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-4 sm:items-center">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 24 }}
+        className="w-full max-w-md rounded-3xl bg-card p-6 shadow-2xl"
+      >
+        <h2 className="font-serif text-lg text-foreground">Invitar colaborador</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ingresá el email y configurá los permisos de acceso.
+        </p>
 
-      {/* Email */}
-      <div className="space-y-1.5">
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Mail className="size-3.5 text-muted-foreground" /> Email del colaborador
-        </label>
         <input
           type="email"
+          placeholder="email@ejemplo.com"
           value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="colaborador@ejemplo.com"
-          required
-          className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+          onChange={(e) => setEmail(e.target.value)}
+          className="mt-4 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+          autoFocus
         />
-      </div>
 
-      {/* Permisos */}
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground flex items-center gap-2">
-          <ShieldCheck className="size-3.5 text-muted-foreground" /> Permisos
-        </p>
-        <div className="space-y-2">
-          {PERMISSION_LABELS.map(({ key, label, description }) => (
-            <PermissionToggle
-              key={key}
-              permKey={key}
-              label={label}
-              description={description}
-              value={permissions[key]}
-              onChange={togglePerm}
-            />
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Permisos</p>
+          {PERMISSION_LABELS.map(({ key, label }) => (
+            <label key={key} className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={perms[key]}
+                onChange={() => togglePerm(key)}
+                className="size-4 rounded accent-primary"
+              />
+              <span className="text-sm text-foreground">{label}</span>
+            </label>
           ))}
         </div>
-      </div>
 
-      {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
-          <AlertCircle className="size-4 shrink-0 text-destructive" />
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      )}
-
-      <div className="flex gap-3">
-        <button type="button" onClick={onCancel}
-          className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-card text-sm font-medium text-foreground hover:bg-secondary transition-all">
-          Cancelar
-        </button>
-        <button type="submit" disabled={loading || !email.trim()}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all">
-          {loading ? <><Loader2 className="size-4 animate-spin" /> Generando…</> : <><UserPlus className="size-4" /> Generar link</>}
-        </button>
-      </div>
-    </motion.form>
-  )
-}
-
-// ─── Invite Link Result ────────────────────────────────────────────────────────
-
-function InviteLinkResult({ link, onDone }: { link: string; onDone: () => void }) {
-  const [copied, setCopied] = useState(false)
-
-  const copy = () => {
-    navigator.clipboard.writeText(link)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2500)
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.97 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="space-y-4"
-    >
-      <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-100">
-          <Check className="size-5 text-emerald-600" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-emerald-800">Link generado</p>
-          <p className="text-xs text-emerald-600 mt-0.5">Válido por 7 días. Compartilo con el colaborador.</p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-secondary p-3 space-y-2">
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Link de invitación</p>
-        <div className="flex items-center gap-2">
-          <p className="flex-1 truncate text-xs font-mono text-foreground">{link}</p>
-          <button onClick={copy}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground hover:bg-secondary transition-all">
-            {copied ? <><Check className="size-3.5 text-primary" /> Copiado</> : <><Copy className="size-3.5" /> Copiar</>}
-          </button>
-        </div>
-      </div>
-
-      <button onClick={onDone}
-        className="flex h-10 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all">
-        Listo
-      </button>
-    </motion.div>
-  )
-}
-
-// ─── Collaborator Row ─────────────────────────────────────────────────────────
-
-function CollaboratorRow({
-  collab,
-  onUpdate,
-  onRemove,
-}: {
-  collab: Collaborator
-  onUpdate: (id: string, perms: Partial<CollaboratorPermissions>) => Promise<void>
-  onRemove: (id: string) => Promise<void>
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const [permissions, setPermissions] = useState<CollaboratorPermissions>({
-    canViewListings:        collab.canViewListings,
-    canCreateListings:      collab.canCreateListings,
-    canEditListings:        collab.canEditListings,
-    canDeleteListings:      collab.canDeleteListings,
-    canViewStats:           collab.canViewStats,
-    canManageLeads:         collab.canManageLeads,
-    canManageCollaborators: collab.canManageCollaborators,
-  })
-  const [saving, setSaving] = useState(false)
-  const [removing, setRemoving] = useState(false)
-  const [copiedLink, setCopiedLink] = useState(false)
-  const [dirty, setDirty] = useState(false)
-
-  const togglePerm = (key: keyof CollaboratorPermissions, val: boolean) => {
-    setPermissions(prev => ({ ...prev, [key]: val }))
-    setDirty(true)
-  }
-
-  const savePerms = async () => {
-    setSaving(true)
-    await onUpdate(collab.id, permissions)
-    setSaving(false)
-    setDirty(false)
-  }
-
-  const handleRemove = async () => {
-    if (!confirm(`¿Remover a ${collab.email} como colaborador?`)) return
-    setRemoving(true)
-    await onRemove(collab.id)
-  }
-
-  const copyInviteLink = () => {
-    if (!collab.invitation?.token) return
-    const link = `${window.location.origin}/invite/${collab.invitation.token}`
-    navigator.clipboard.writeText(link)
-    setCopiedLink(true)
-    setTimeout(() => setCopiedLink(false), 2000)
-  }
-
-  const statusColors = {
-    PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
-    ACTIVE:  'bg-emerald-50 text-emerald-700 border-emerald-200',
-    REMOVED: 'bg-secondary text-muted-foreground border-border',
-  }
-
-  const statusLabels = { PENDING: 'Pendiente', ACTIVE: 'Activo', REMOVED: 'Removido' }
-  const activePermsCount = Object.values(permissions).filter(Boolean).length
-
-  return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
-      {/* Header row */}
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold text-primary">
-          {collab.email.slice(0, 2).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{collab.email}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {activePermsCount} permiso{activePermsCount !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusColors[collab.status]}`}>
-            {statusLabels[collab.status]}
-          </span>
-
-          {/* Copiar link si está pendiente */}
-          {collab.status === 'PENDING' && collab.invitation && (
-            <button onClick={copyInviteLink} title="Copiar link de invitación"
-              className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
-              {copiedLink ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
-            </button>
-          )}
-
-          <button onClick={() => setExpanded(v => !v)}
-            className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
-            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Expanded: permisos */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-border px-4 py-4 space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Permisos</p>
-              <div className="space-y-2">
-                {PERMISSION_LABELS.map(({ key, label, description }) => (
-                  <PermissionToggle
-                    key={key}
-                    permKey={key}
-                    label={label}
-                    description={description}
-                    value={permissions[key]}
-                    onChange={togglePerm}
-                  />
-                ))}
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={handleRemove}
-                  disabled={removing}
-                  className="flex h-9 items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/5 px-3 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-all"
-                >
-                  {removing ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-                  Remover
-                </button>
-                {dirty && (
-                  <button
-                    onClick={savePerms}
-                    disabled={saving}
-                    className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-all"
-                  >
-                    {saving ? <><Loader2 className="size-4 animate-spin" /> Guardando…</> : <><Check className="size-4" /> Guardar cambios</>}
-                  </button>
-                )}
-              </div>
-
-              {/* Info de expiración si es pendiente */}
-              {collab.status === 'PENDING' && collab.invitation && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="size-3.5" />
-                  <span>
-                    Invitación expira el{' '}
-                    {new Date(collab.invitation.expiresAt).toLocaleDateString('es-AR', {
-                      day: 'numeric', month: 'long', year: 'numeric',
-                    })}
-                  </span>
-                </div>
-              )}
-            </div>
-          </motion.div>
+        {error && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <AlertCircle className="size-4 shrink-0" />
+            {error}
+          </div>
         )}
-      </AnimatePresence>
+
+        <div className="mt-5 flex gap-2">
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !email.trim()}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
+            {loading ? 'Enviando...' : 'Enviar invitación'}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted-foreground hover:bg-muted disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+        </div>
+      </motion.div>
     </div>
   )
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ── Banner de éxito post-invitación ───────────────────────────────────────────
+function InvitedBanner({ email, link, onDismiss }: { email: string; link: string; onDismiss: () => void }) {
+  const [copied, setCopied] = useState(false)
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="rounded-2xl border border-green-200 bg-green-50 p-4"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Check className="mt-0.5 size-5 shrink-0 text-green-600" />
+          <div>
+            <p className="text-sm font-medium text-green-800">
+              Invitación enviada a {email}
+            </p>
+            <p className="mt-1 text-xs text-green-700">
+              Compartí el link si no recibe el email.
+            </p>
+            <button
+              onClick={handleCopy}
+              className="mt-2 flex items-center gap-1.5 text-xs font-medium text-green-700 hover:underline"
+            >
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              {copied ? 'Copiado' : 'Copiar link de invitación'}
+            </button>
+          </div>
+        </div>
+        <button onClick={onDismiss} className="text-green-600 hover:text-green-800">
+          <UserX className="size-4" />
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export function CollaboratorsSection() {
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([])
-  const [loadingList, setLoadingList] = useState(true)
-  const [mode, setMode] = useState<'list' | 'invite' | 'link'>('list')
-  const [generatedLink, setGeneratedLink] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const { profile } = useAuth()
 
-  const load = useCallback(async () => {
-    setLoadingList(true)
-    setError(null)
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([])
+  const [loading, setLoading]             = useState(true)
+  const [loadError, setLoadError]         = useState<string | null>(null)
+  const [showModal, setShowModal]         = useState(false)
+  const [lastInvited, setLastInvited]     = useState<{ email: string; link: string } | null>(null)
+
+  const loadCollaborators = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
     try {
       const res = await listCollaborators()
       setCollaborators(res.data)
-    } catch (e: any) {
-      setError(e.message ?? 'Error al cargar colaboradores')
+    } catch (err) {
+      setLoadError(getErrorMessage(err))
     } finally {
-      setLoadingList(false)
+      setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (profile?.isOwner) loadCollaborators()
+  }, [profile?.isOwner, loadCollaborators])
 
-  const handleInvited = (link: string) => {
-    setGeneratedLink(link)
-    setMode('link')
-    load()
+  const handleInvited = (collab: Collaborator, link: string) => {
+    setCollaborators((prev) => [collab, ...prev])
+    setShowModal(false)
+    setLastInvited({ email: collab.email, link })
   }
 
-  const handleUpdate = async (id: string, perms: Partial<CollaboratorPermissions>) => {
-    await updateCollaboratorPermissions(id, perms)
-    await load()
-  }
+  const handleRemoved = (id: string) =>
+    setCollaborators((prev) => prev.filter((c) => c.id !== id))
 
-  const handleRemove = async (id: string) => {
-    await removeCollaborator(id)
-    await load()
-  }
+  if (!profile?.isOwner) return null
 
-  const active  = collaborators.filter(c => c.status === 'ACTIVE')
-  const pending = collaborators.filter(c => c.status === 'PENDING')
+  const active = collaborators.filter((c) => c.status !== 'REMOVED')
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <Users className="size-4 text-muted-foreground" /> Colaboradores
-          </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {active.length} activo{active.length !== 1 ? 's' : ''}{pending.length > 0 ? ` · ${pending.length} pendiente${pending.length !== 1 ? 's' : ''}` : ''}
-          </p>
-        </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
-            <RefreshCw className={`size-3.5 ${loadingList ? 'animate-spin' : ''}`} />
-          </button>
-          {mode === 'list' && (
-            <button onClick={() => setMode('invite')}
-              className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-all">
-              <UserPlus className="size-3.5" /> Invitar
-            </button>
-          )}
+          <Users className="size-5 text-primary" />
+          <h2 className="font-medium text-foreground">
+            Colaboradores {active.length > 0 && `(${active.length})`}
+          </h2>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          <Plus className="size-3.5" />
+          Invitar
+        </button>
       </div>
 
-      {/* Formulario / Link / Lista */}
-      <AnimatePresence mode="wait">
-        {mode === 'invite' && (
-          <motion.div key="invite" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <InviteForm onInvited={handleInvited} onCancel={() => setMode('list')} />
-          </motion.div>
+      {/* Banner de invitación enviada */}
+      <AnimatePresence>
+        {lastInvited && (
+          <InvitedBanner
+            email={lastInvited.email}
+            link={lastInvited.link}
+            onDismiss={() => setLastInvited(null)}
+          />
         )}
+      </AnimatePresence>
 
-        {mode === 'link' && (
-          <motion.div key="link" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <InviteLinkResult link={generatedLink} onDone={() => setMode('list')} />
-          </motion.div>
-        )}
+      {/* Error de carga */}
+      {loadError && (
+        <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="size-4 shrink-0" />
+          {loadError}
+          <button onClick={loadCollaborators} className="ml-auto text-xs underline">
+            Reintentar
+          </button>
+        </div>
+      )}
 
-        {mode === 'list' && (
-          <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-            {error && (
-              <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5">
-                <AlertCircle className="size-4 shrink-0 text-destructive" />
-                <p className="text-sm text-destructive">{error}</p>
-              </div>
-            )}
+      {/* Lista */}
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-14 animate-pulse rounded-xl bg-muted" />
+          ))}
+        </div>
+      ) : active.length === 0 && !loadError ? (
+        <EmptyState onInvite={() => setShowModal(true)} />
+      ) : (
+        <div className="space-y-2">
+          <AnimatePresence>
+            {active.map((c) => (
+              <CollaboratorRow key={c.id} collab={c} onRemove={handleRemoved} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
 
-            {loadingList ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : collaborators.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border bg-secondary/30 px-6 py-8 text-center">
-                <Users className="mx-auto size-8 text-muted-foreground/50" />
-                <p className="mt-3 text-sm font-medium text-foreground">Sin colaboradores todavía</p>
-                <p className="mt-1 text-xs text-muted-foreground">Invitá a tu equipo para trabajar juntos.</p>
-                <button onClick={() => setMode('invite')}
-                  className="mt-4 flex items-center gap-2 mx-auto h-9 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-all">
-                  <UserPlus className="size-3.5" /> Invitar primer colaborador
-                </button>
-              </div>
-            ) : (
-              collaborators.map(c => (
-                <CollaboratorRow
-                  key={c.id}
-                  collab={c}
-                  onUpdate={handleUpdate}
-                  onRemove={handleRemove}
-                />
-              ))
-            )}
-          </motion.div>
+      {/* Modal de invitación */}
+      <AnimatePresence>
+        {showModal && (
+          <InviteModal
+            onClose={() => setShowModal(false)}
+            onInvited={handleInvited}
+          />
         )}
       </AnimatePresence>
     </div>
