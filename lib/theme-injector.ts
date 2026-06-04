@@ -1,50 +1,37 @@
-// lib/theme-injector.ts
-// ─── Convierte ThemeConfig → CSS variables para inyectar en <head> ────────────
-//
-// El config service guarda colores en hex (#c2714f).
-// El design system del real-front usa oklch(...) en globals.css.
-// En lugar de convertir hex→oklch (requiere cálculos complejos), inyectamos
-// los colores hex directamente en variables CSS separadas con prefijo --theme-*.
-// Los componentes que quieran usar el tema dinámico usan --theme-primary, etc.
-// Los colores base de Tailwind (--primary, --secondary) quedan intactos como fallback.
-
-import type { ThemeConfig } from './config-client'
-
 /**
- * Genera el string CSS con las variables del tema para inyectar en <style>.
- * Solo se inyectan las variables --theme-* (no sobreescribe las de Tailwind).
+ * lib/theme-injector.ts
  *
- * @param theme — ThemeConfig del config service
- * @returns string CSS listo para inyectar en <style> en el <head>
+ * Convierte un PublicTheme en un bloque de CSS custom properties
+ * para inyectar en el <head> del layout (Server Component).
+ *
+ * Uso en layout.tsx:
+ *   const theme = await getPublicTheme(orgSlug)
+ *   const css   = buildThemeCSS(theme)
+ *   // <style dangerouslySetInnerHTML={{ __html: css }} />
  */
-export function buildThemeCSS(theme: ThemeConfig): string {
-  const vars: string[] = [
-    `--theme-primary: ${theme.primaryColor};`,
-    `--theme-secondary: ${theme.secondaryColor};`,
-    `--theme-accent: ${theme.accentColor ?? theme.primaryColor};`,
-    `--theme-radius: ${theme.borderRadius};`,
-    `--theme-font: ${theme.fontFamily}, 'DM Sans', sans-serif;`,
-    `--theme-dark-mode: ${theme.darkMode ? '1' : '0'};`,
-  ]
 
-  if (theme.logoUrl) {
-    vars.push(`--theme-logo-url: url('${theme.logoUrl}');`)
-  }
-
-  const css = `:root {\n  ${vars.join('\n  ')}\n}`
-
-  // Si tiene CSS personalizado, lo agrega después de las variables
-  if (theme.customCSS?.trim()) {
-    return `${css}\n\n/* Custom CSS — ${theme.name} */\n${theme.customCSS}`
-  }
-
-  return css
-}
+import type { PublicTheme } from './config-client'
 
 /**
- * Retorna true si el ThemeConfig es el tema por defecto (sin personalización real).
- * Útil para evitar inyectar un <style> vacío innecesario.
+ * Genera el bloque :root { ... } con las custom properties del tema.
+ * Si el tema es el default, devuelve string vacío (sin override).
  */
-export function isDefaultTheme(theme: ThemeConfig): boolean {
-  return theme.id === 'default' || theme.isSystemDefault
+export function buildThemeCSS(theme: PublicTheme): string {
+  const vars: string[] = []
+
+  if (theme.primaryColor)   vars.push(`--color-primary: ${theme.primaryColor};`)
+  if (theme.secondaryColor) vars.push(`--color-secondary: ${theme.secondaryColor};`)
+  if (theme.accentColor)    vars.push(`--color-accent: ${theme.accentColor};`)
+  if (theme.fontFamily)     vars.push(`--font-sans: ${theme.fontFamily}, sans-serif;`)
+  if (theme.borderRadius)   vars.push(`--radius: ${theme.borderRadius};`)
+
+  if (vars.length === 0 && !theme.customCSS) return ''
+
+  const rootBlock = vars.length > 0
+    ? `:root {\n  ${vars.join('\n  ')}\n}`
+    : ''
+
+  const customBlock = theme.customCSS ?? ''
+
+  return [rootBlock, customBlock].filter(Boolean).join('\n\n')
 }

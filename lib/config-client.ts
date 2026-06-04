@@ -1,85 +1,77 @@
-// lib/config-client.ts
-// ─── Cliente del Config Service para el real-front ────────────────────────────
-//
-// Solo expone la función pública getPublicTheme — no requiere auth.
-// Corre en el Server Component del layout (Next.js App Router).
-// Fallback silencioso si el config service no está disponible.
+/**
+ * lib/config-client.ts
+ *
+ * Cliente para obtener la configuración pública de tema desde el
+ * microservicio de configuración (config-service).
+ *
+ * En producción: usa NEXT_PUBLIC_CONFIG_API_URL para llamar al endpoint
+ * GET /config/theme/:orgSlug
+ *
+ * Mientras el microservicio no esté disponible para esta instancia,
+ * devuelve el tema por defecto (isDefaultTheme = true).
+ */
 
-export interface ThemeConfig {
-  id:              string
+export interface PublicTheme {
+  id:              string | null
   name:            string
-  isActive:        boolean
-  isSystemDefault: boolean
-  primaryColor:    string
-  secondaryColor:  string
+  primaryColor:    string | null
+  secondaryColor:  string | null
   accentColor:     string | null
-  fontFamily:      string
-  borderRadius:    string
+  fontFamily:      string | null
+  borderRadius:    string | null
   logoUrl:         string | null
   faviconUrl:      string | null
   darkMode:        boolean
   customCSS:       string | null
+  isSystemDefault: boolean
+  isActive:        boolean
 }
 
-/**
- * Tema por defecto — terracota/cream, el diseño original del real-front.
- * Se usa cuando el config service no está disponible o la org no tiene tema.
- */
-export const DEFAULT_THEME: ThemeConfig = {
-  id:              'default',
+const DEFAULT_THEME: PublicTheme = {
+  id:              null,
   name:            'Default',
-  isActive:        true,
-  isSystemDefault: true,
-  primaryColor:    '#c2714f',   // terracota
-  secondaryColor:  '#f7f3ef',   // warm cream
-  accentColor:     '#d4896a',   // terracota lighter
-  fontFamily:      'DM Sans',
-  borderRadius:    '0.75rem',
+  primaryColor:    null,
+  secondaryColor:  null,
+  accentColor:     null,
+  fontFamily:      null,
+  borderRadius:    null,
   logoUrl:         null,
   faviconUrl:      null,
   darkMode:        false,
   customCSS:       null,
+  isSystemDefault: true,
+  isActive:        true,
 }
 
 /**
- * Obtiene el tema activo de la organización desde el config service.
- * Endpoint público — no requiere Firebase token ni API Key.
- *
- * Resolución del config service:
- *   1. Busca tema activo de la org con ese slug
- *   2. Si no tiene, devuelve el tema "Default" del sistema
- *
- * @param orgSlug — slug de la organización (ej: "inmobiliaria-san-martin")
- * @returns ThemeConfig activo o DEFAULT_THEME como fallback
+ * Obtiene el tema público de una organización.
+ * Server-side safe (no usa window ni localStorage).
  */
-export async function getPublicTheme(orgSlug: string): Promise<ThemeConfig> {
-  const configUrl = process.env.NEXT_PUBLIC_CONFIG_URL
+export async function getPublicTheme(orgSlug: string): Promise<PublicTheme> {
+  const baseUrl = process.env['NEXT_PUBLIC_CONFIG_API_URL']
 
-  if (!configUrl) {
-    // Config service no configurado — usar tema por defecto silenciosamente
+  if (!baseUrl || !orgSlug) {
     return DEFAULT_THEME
   }
 
   try {
-    const res = await fetch(
-      `${configUrl}/config/themes/public/${encodeURIComponent(orgSlug)}`,
-      {
-        // Next.js revalidará cada 5 minutos (alineado con TTL de Redis del config service)
-        next: { revalidate: 300 },
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
+    const res = await fetch(`${baseUrl}/config/theme/${orgSlug}`, {
+      next: { revalidate: 300 }, // ISR: revalidar cada 5 minutos
+    })
 
-    if (!res.ok) {
-      // 404 → org sin tema → usar default
-      // Cualquier otro error → fallback silencioso
-      return DEFAULT_THEME
-    }
+    if (!res.ok) return DEFAULT_THEME
 
-    const json = await res.json() as { success: boolean; data: ThemeConfig }
+    const json = await res.json() as { success: boolean; data: PublicTheme }
     return json.data ?? DEFAULT_THEME
   } catch {
-    // Config service no disponible — fallback silencioso, nunca romper la landing
     return DEFAULT_THEME
   }
+}
+
+/**
+ * Retorna true si el tema es el tema por defecto del sistema
+ * (sin personalización de la organización).
+ */
+export function isDefaultTheme(theme: PublicTheme): boolean {
+  return theme.isSystemDefault === true || theme.id === null
 }
