@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   // Strict en producción
   typescript: {
     ignoreBuildErrors: false,
