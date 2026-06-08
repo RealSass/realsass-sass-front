@@ -6,47 +6,28 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2, Users, Check, Loader2, LogOut,
   ArrowRight, Copy, AlertCircle, ChevronLeft,
-  Star, Plus,
+  Star, Plus, Shield, Eye,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { selectRole, updateMyOrganization } from '@/lib/api'
 import { getErrorMessage } from '@/lib/errors'
-import type { Organization } from '@/lib/types'
+import { getCollaboratorTenants } from '@/lib/types'
+import type { Organization, Tenant } from '@/lib/types'
 
-// ── tipos de vista ────────────────────────────────────────────────────────────
 type View = 'overview' | 'add-role' | 'edit-org'
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
-function ProfileSkeleton() {
-  return (
-    <div className="min-h-screen bg-background px-4 py-8 animate-pulse">
-      <div className="mx-auto max-w-2xl space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="size-16 rounded-full bg-muted" />
-          <div className="space-y-2 flex-1">
-            <div className="h-5 w-40 rounded bg-muted" />
-            <div className="h-4 w-56 rounded bg-muted" />
-          </div>
-        </div>
-        {[1, 2, 3].map(i => <div key={i} className="h-14 rounded-xl bg-muted" />)}
-      </div>
-    </div>
-  )
-}
-
-// ── Back button ───────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5"
     >
       <ChevronLeft className="size-4" /> Volver
     </button>
   )
 }
 
-// ── Copy Code ─────────────────────────────────────────────────────────────────
 function CopyCode({ code }: { code: string }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -57,6 +38,24 @@ function CopyCode({ code }: { code: string }) {
       <span>{code}</span>
       {copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4 text-muted-foreground" />}
     </button>
+  )
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+function ProfileSkeleton() {
+  return (
+    <div className="min-h-screen bg-background px-4 py-8 animate-pulse">
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="size-16 rounded-full bg-muted shrink-0" />
+          <div className="space-y-2 flex-1">
+            <div className="h-5 w-40 rounded bg-muted" />
+            <div className="h-4 w-56 rounded bg-muted" />
+          </div>
+        </div>
+        {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-2xl bg-muted" />)}
+      </div>
+    </div>
   )
 }
 
@@ -91,24 +90,20 @@ function RoleSelector({
 
   const cards = [
     {
-      role:        'owner' as const,
-      icon:        Building2,
-      title:       'Propietario / Agencia',
+      role: 'owner' as const, icon: Building2,
+      title: 'Propietario / Agencia',
       description: 'Gestioná tu inmobiliaria, equipo y propiedades desde un solo lugar.',
-      perks:       ['Perfil de organización', 'Gestión de colaboradores', 'Estadísticas'],
-      accent:      'from-amber-500/10 to-orange-500/5 border-amber-200/50',
-      disabled:    currentIsOwner,
-      disabledMsg: 'Ya sos Owner',
+      perks: ['Perfil de organización', 'Gestión de colaboradores', 'Estadísticas'],
+      accent: 'from-amber-500/10 to-orange-500/5 border-amber-200/50',
+      disabled: currentIsOwner, disabledMsg: 'Ya sos Owner',
     },
     {
-      role:        'affiliate' as const,
-      icon:        Users,
-      title:       'Afiliado',
+      role: 'affiliate' as const, icon: Users,
+      title: 'Afiliado',
       description: 'Referí nuevas agencias y ganá comisiones por cada cliente activo.',
-      perks:       ['Código único de referido', 'Dashboard de comisiones', 'Historial'],
-      accent:      'from-emerald-500/10 to-teal-500/5 border-emerald-200/50',
-      disabled:    currentIsAffiliate,
-      disabledMsg: 'Ya sos Afiliado',
+      perks: ['Código único de referido', 'Dashboard de comisiones', 'Historial'],
+      accent: 'from-emerald-500/10 to-teal-500/5 border-emerald-200/50',
+      disabled: currentIsAffiliate, disabledMsg: 'Ya sos Afiliado',
     },
   ]
 
@@ -117,9 +112,7 @@ function RoleSelector({
       <BackButton onClick={onBack} />
       <div className="mb-6 text-center">
         <h2 className="font-serif text-2xl text-foreground">Activar rol</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Podés tener ambos roles activos al mismo tiempo.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Podés tener ambos roles al mismo tiempo.</p>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {cards.map(({ role, icon: Icon, title, description, perks, accent, disabled, disabledMsg }) => (
@@ -137,10 +130,7 @@ function RoleSelector({
               </span>
             )}
             <div className="flex size-11 items-center justify-center rounded-xl bg-white/60 backdrop-blur-sm shadow-sm">
-              {loading === role
-                ? <Loader2 className="size-5 animate-spin text-primary" />
-                : <Icon className="size-5 text-foreground" />
-              }
+              {loading === role ? <Loader2 className="size-5 animate-spin text-primary" /> : <Icon className="size-5 text-foreground" />}
             </div>
             <div>
               <h3 className="text-base font-semibold text-foreground">{title}</h3>
@@ -167,15 +157,7 @@ function RoleSelector({
 }
 
 // ── Org Form ──────────────────────────────────────────────────────────────────
-function OrgForm({
-  org,
-  onBack,
-  onSaved,
-}: {
-  org:     Organization | null
-  onBack:  () => void
-  onSaved: () => void
-}) {
+function OrgForm({ org, onBack, onSaved }: { org: Organization | null; onBack: () => void; onSaved: () => void }) {
   const { refreshProfile } = useAuth()
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState<string | null>(null)
@@ -205,13 +187,13 @@ function OrgForm({
   }
 
   const fields = [
-    { key: 'name',        label: 'Nombre de la inmobiliaria *', type: 'text' },
-    { key: 'description', label: 'Descripción',                 type: 'text' },
-    { key: 'website',     label: 'Sitio web',                   type: 'url'  },
-    { key: 'phone',       label: 'Teléfono',                    type: 'tel'  },
-    { key: 'address',     label: 'Dirección',                   type: 'text' },
-    { key: 'logoUrl',     label: 'URL del logo',                type: 'url'  },
-  ] as const
+    { key: 'name' as const,        label: 'Nombre de la inmobiliaria *', type: 'text' },
+    { key: 'description' as const, label: 'Descripción',                 type: 'text' },
+    { key: 'website' as const,     label: 'Sitio web',                   type: 'url'  },
+    { key: 'phone' as const,       label: 'Teléfono',                    type: 'tel'  },
+    { key: 'address' as const,     label: 'Dirección',                   type: 'text' },
+    { key: 'logoUrl' as const,     label: 'URL del logo',                type: 'url'  },
+  ]
 
   return (
     <div>
@@ -245,20 +227,14 @@ function OrgForm({
           </div>
         )}
         <div className="flex gap-3 pt-1">
-          <button
-            onClick={onBack}
-            disabled={saving}
-            className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted-foreground hover:bg-muted disabled:opacity-60 transition-all"
-          >
+          <button onClick={onBack} disabled={saving}
+            className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted-foreground hover:bg-muted disabled:opacity-60 transition-all">
             Cancelar
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || success}
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all"
-          >
+          <button onClick={handleSave} disabled={saving || success}
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all">
             {saving  ? <><Loader2 className="size-4 animate-spin" /> Guardando...</> :
-             success ? <><Check className="size-4" /> Guardado</> :
+             success ? <><Check className="size-4" /> Guardado</>   :
                        <><Check className="size-4" /> Guardar</>}
           </button>
         </div>
@@ -267,31 +243,71 @@ function OrgForm({
   )
 }
 
-// ── Overview (vista principal) ────────────────────────────────────────────────
-function Overview({
-  onAddRole,
-  onEditOrg,
-}: {
-  onAddRole:  () => void
-  onEditOrg:  () => void
-}) {
+// ── Tenant Card (colaboración en otra org) ────────────────────────────────────
+function TenantCard({ tenant }: { tenant: Tenant }) {
+  const org   = tenant.organization
+  const perms = tenant.permissions
+
+  const activePerms = [
+    perms.canViewListings        && 'Ver propiedades',
+    perms.canCreateListings      && 'Crear propiedades',
+    perms.canEditListings        && 'Editar propiedades',
+    perms.canDeleteListings      && 'Eliminar propiedades',
+    perms.canViewStats           && 'Ver estadísticas',
+    perms.canManageLeads         && 'Gestionar clientes',
+    perms.canManageCollaborators && 'Gestionar colaboradores',
+  ].filter(Boolean) as string[]
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+      <div className="flex items-start gap-3">
+        {org.logoUrl ? (
+          <img src={org.logoUrl} alt={org.name ?? ''} className="size-10 rounded-xl border border-border object-cover shrink-0" />
+        ) : (
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 shrink-0">
+            <Building2 className="size-5 text-primary" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-foreground truncate">{org.name ?? 'Sin nombre'}</p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <Shield className="size-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Colaborador</span>
+          </div>
+        </div>
+      </div>
+      {activePerms.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {activePerms.map(p => (
+            <span key={p} className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground/70">
+              <Eye className="size-2.5" /> {p}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+function Overview({ onAddRole, onEditOrg }: { onAddRole: () => void; onEditOrg: () => void }) {
   const { profile, firebaseUser, logout } = useAuth()
   const router = useRouter()
 
   if (!profile || !firebaseUser) return null
 
-  const displayName = profile.displayName ?? firebaseUser.displayName ?? profile.email
-  const initials    = (displayName ?? 'U').charAt(0).toUpperCase()
-  const org         = profile.organization
-  const noRole      = !profile.isOwner && !profile.isAffiliate
-  const canAddRole  = !profile.isOwner || !profile.isAffiliate  // puede agregar si le falta uno
+  const displayName      = profile.displayName ?? firebaseUser.displayName ?? profile.email
+  const initials         = (displayName ?? 'U').charAt(0).toUpperCase()
+  const noRole           = !profile.isOwner && !profile.isAffiliate
+  const canAddRole       = !profile.isOwner || !profile.isAffiliate
+  const collaborations   = getCollaboratorTenants(profile)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
         {profile.avatarUrl ? (
-          <img src={profile.avatarUrl} alt={displayName ?? ''} className="size-16 rounded-full object-cover border-2 border-border" />
+          <img src={profile.avatarUrl} alt={displayName ?? ''} className="size-16 rounded-full object-cover border-2 border-border shrink-0" />
         ) : (
           <div className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl font-semibold shrink-0">
             {initials}
@@ -300,28 +316,27 @@ function Overview({
         <div className="min-w-0">
           <h1 className="font-serif text-xl text-foreground truncate">{displayName}</h1>
           <p className="text-sm text-muted-foreground truncate">{profile.email}</p>
-          <div className="mt-1 flex flex-wrap gap-2">
-            {profile.isOwner     && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Building2 className="size-3" /> Owner</span>}
-            {profile.isAffiliate && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"><Star className="size-3" /> Afiliado</span>}
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {profile.isOwner     && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700"><Building2 className="size-3" /> Owner</span>}
+            {profile.isAffiliate && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700"><Star className="size-3" /> Afiliado</span>}
+            {collaborations.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700"><Shield className="size-3" /> {collaborations.length} colaboración{collaborations.length > 1 ? 'es' : ''}</span>}
           </div>
         </div>
       </div>
 
-      {/* Sin rol → prompt para elegir */}
+      {/* Sin rol */}
       {noRole && (
         <div className="rounded-2xl border border-dashed border-border bg-secondary/30 p-6 text-center space-y-3">
           <p className="text-sm font-medium text-foreground">¿Cómo querés usar la plataforma?</p>
           <p className="text-xs text-muted-foreground">Elegí tu rol para empezar</p>
-          <button
-            onClick={onAddRole}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-all"
-          >
+          <button onClick={onAddRole}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-all">
             <Plus className="size-4" /> Elegir rol
           </button>
         </div>
       )}
 
-      {/* Owner → organización */}
+      {/* Org propia */}
       {profile.isOwner && (
         <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -329,18 +344,18 @@ function Overview({
               <Building2 className="size-4 text-primary" />
               <h2 className="text-sm font-medium text-foreground">Mi organización</h2>
             </div>
-            <button onClick={onEditOrg} className="text-xs text-primary hover:underline">
-              {org?.name ? 'Editar' : 'Completar'}
+            <button onClick={onEditOrg} className="text-xs text-primary hover:underline transition-colors">
+              {profile.organization?.name ? 'Editar' : 'Completar'}
             </button>
           </div>
-          {org?.name ? (
+          {profile.organization?.name ? (
             <div className="space-y-1.5 text-sm">
               {[
-                { label: 'Nombre',      value: org.name        },
-                { label: 'Descripción', value: org.description },
-                { label: 'Sitio web',   value: org.website     },
-                { label: 'Teléfono',    value: org.phone       },
-                { label: 'Dirección',   value: org.address     },
+                { label: 'Nombre',      value: profile.organization.name        },
+                { label: 'Descripción', value: profile.organization.description },
+                { label: 'Sitio web',   value: profile.organization.website     },
+                { label: 'Teléfono',    value: profile.organization.phone       },
+                { label: 'Dirección',   value: profile.organization.address     },
               ].filter(({ value }) => value).map(({ label, value }) => (
                 <div key={label} className="flex justify-between gap-4">
                   <span className="text-muted-foreground shrink-0">{label}</span>
@@ -349,14 +364,22 @@ function Overview({
               ))}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground italic">
-              Completá los datos de tu inmobiliaria
-            </p>
+            <p className="text-xs text-muted-foreground italic">Completá los datos de tu inmobiliaria</p>
           )}
         </div>
       )}
 
-      {/* Afiliado → código + stats */}
+      {/* Colaboraciones en otras orgs (multitenancy) */}
+      {collaborations.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-1">
+            Organizaciones donde colaborás
+          </p>
+          {collaborations.map(t => <TenantCard key={t.organizationId} tenant={t} />)}
+        </div>
+      )}
+
+      {/* Panel afiliado */}
       {profile.isAffiliate && profile.affiliateCode && (
         <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
           <div className="flex items-center gap-2">
@@ -366,15 +389,11 @@ function Overview({
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-secondary p-3">
               <p className="text-xs text-muted-foreground">Referidos</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">
-                {profile.affiliateData?.referralCount ?? 0}
-              </p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{profile.affiliateData?.referralCount ?? 0}</p>
             </div>
             <div className="rounded-xl bg-secondary p-3">
               <p className="text-xs text-muted-foreground">Balance</p>
-              <p className="text-xl font-semibold text-foreground mt-0.5">
-                ${profile.affiliateData?.balance ?? '0.00'}
-              </p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">${profile.affiliateData?.balance ?? '0.00'}</p>
             </div>
           </div>
           <div>
@@ -386,20 +405,16 @@ function Overview({
 
       {/* Agregar rol faltante */}
       {canAddRole && !noRole && (
-        <button
-          onClick={onAddRole}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
-        >
+        <button onClick={onAddRole}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-all">
           <Plus className="size-4" />
           {!profile.isOwner ? 'Activar rol Owner' : 'Activar rol Afiliado'}
         </button>
       )}
 
       {/* Cerrar sesión */}
-      <button
-        onClick={async () => { await logout(); router.push('/') }}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 py-3 text-sm text-destructive hover:bg-destructive/5 transition-all"
-      >
+      <button onClick={async () => { await logout(); router.push('/') }}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 py-3 text-sm text-destructive hover:bg-destructive/5 transition-all">
         <LogOut className="size-4" /> Cerrar sesión
       </button>
     </div>

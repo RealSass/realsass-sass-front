@@ -1,8 +1,6 @@
 // lib/types.ts
-// ─── Tipos centralizados de la aplicación ────────────────────────────────────
 
-// ─── User & Auth ──────────────────────────────────────────────────────────────
-
+// ─── Organization ─────────────────────────────────────────────────────────────
 export interface Organization {
   id:          string
   userId:      string
@@ -16,41 +14,65 @@ export interface Organization {
   updatedAt:   string
 }
 
-export interface AffiliateData {
-  id:           string
-  userId:       string
-  balance:      string
-  referralCount: number
-  createdAt:    string
-  updatedAt:    string
+// ─── Tenant (org propia o colaboración) ──────────────────────────────────────
+export type TenantRole = 'OWNER' | 'COLLABORATOR'
+
+export interface TenantPermissions {
+  canViewListings:        boolean
+  canCreateListings:      boolean
+  canEditListings:        boolean
+  canDeleteListings:      boolean
+  canViewStats:           boolean
+  canManageLeads:         boolean
+  canManageCollaborators: boolean
 }
 
+export interface Tenant {
+  organizationId: string
+  organization:   Organization
+  role:           TenantRole
+  permissions:    TenantPermissions
+}
+
+// ─── Affiliate ────────────────────────────────────────────────────────────────
+export interface AffiliateData {
+  id:            string
+  userId:        string
+  balance:       string
+  referralCount: number
+  createdAt:     string
+  updatedAt:     string
+}
+
+export interface AffiliateReferral {
+  id:          string
+  email:       string
+  isOwner:     boolean
+  isAffiliate: boolean
+  createdAt:   string
+}
+
+// ─── UserProfile (shape canónico del back) ────────────────────────────────────
 export interface UserProfile {
   id:             string
   firebaseUid:    string
   email:          string
-  displayName:    string | null   // ← sincronizado desde Firebase
-  avatarUrl:      string | null   // ← sincronizado desde Firebase
+  displayName:    string | null
+  avatarUrl:      string | null
   isOwner:        boolean
   isAffiliate:    boolean
   affiliateCode:  string | null
   referredByCode: string | null
   createdAt:      string
   updatedAt:      string
+  // Org propia (acceso rápido)
   organization:   Organization | null
+  // Todos los tenants: org propia + colaboraciones activas
+  tenants:        Tenant[]
   affiliateData:  AffiliateData | null
 }
 
-export interface AffiliateReferral {
-  id:         string
-  email:      string
-  isOwner:    boolean
-  isAffiliate: boolean
-  createdAt:  string
-}
-
 // ─── Collaborators ────────────────────────────────────────────────────────────
-
 export type CollaboratorStatus = 'PENDING' | 'ACTIVE' | 'REMOVED'
 
 export interface CollaboratorPermissions {
@@ -88,3 +110,12 @@ export interface InvitationInfo {
 }
 
 export type InviteCollaboratorPayload = { email: string } & Partial<CollaboratorPermissions>
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+export function getOwnerTenant(profile: UserProfile | null): Tenant | null {
+  return profile?.tenants.find(t => t.role === 'OWNER') ?? null
+}
+
+export function getCollaboratorTenants(profile: UserProfile | null): Tenant[] {
+  return profile?.tenants.filter(t => t.role === 'COLLABORATOR') ?? []
+}
