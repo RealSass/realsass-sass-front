@@ -1,6 +1,9 @@
 // next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Genera .next/standalone — requerido por Railway/Docker para deploy eficiente
+  output: 'standalone',
+
   async headers() {
     const isDev = process.env.NODE_ENV === 'development'
     if (isDev) return []

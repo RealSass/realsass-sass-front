@@ -1,6 +1,8 @@
 [variables]
 NIXPACKS_NODE_VERSION = "20"
 NODE_ENV = "production"
+HOSTNAME = "0.0.0.0"
+PORT = "3000"
 
 [phases.setup]
 nixPkgs = ["nodejs_20"]
@@ -15,5 +17,13 @@ cmds = [
 [phases.build]
 cmds = ["pnpm run build"]
 
+# standalone genera: .next/standalone/server.js
+# hay que copiar static files manualmente al directorio standalone
+[phases.postbuild]
+cmds = [
+  "cp -r .next/static .next/standalone/.next/static",
+  "cp -r public .next/standalone/public"
+]
+
 [start]
-cmd = "pnpm start"
+cmd = "node .next/standalone/server.js"
