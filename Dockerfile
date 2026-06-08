@@ -44,7 +44,7 @@ COPY . .
 
 # Habilitar output standalone para imagen mínima
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+RUN pnpm run build
 
 # ── Stage 3: imagen de producción mínima ─────────────────────────────────────
 FROM node:20-alpine AS runner
