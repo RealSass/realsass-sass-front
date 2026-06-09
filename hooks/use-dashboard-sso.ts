@@ -1,5 +1,4 @@
 // hooks/use-dashboard-sso.ts
-// Flujo SSO: Firebase ID token → dashboard-back → JWT → localStorage → redirect
 'use client'
 
 import { useState, useCallback } from 'react'
@@ -26,14 +25,11 @@ export function useDashboardSSO(
       const firebaseToken = await getIdToken()
       if (!firebaseToken) throw new Error('No se pudo obtener el token de sesión')
 
-      const res = await fetch(
-        `${DASHBOARD_API_URL}/api/v1/auth/firebase-sso`,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ firebaseIdToken: firebaseToken }),
-        },
-      )
+      const res = await fetch(`${DASHBOARD_API_URL}/api/v1/auth/firebase-sso`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ firebaseIdToken: firebaseToken }),
+      })
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { message?: string }

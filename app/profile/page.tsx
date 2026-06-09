@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Building2, Users, Check, Loader2, LogOut, LayoutGrid,
+  Building2, Users, Check, Loader2, LogOut,
   ArrowRight, Copy, AlertCircle, ChevronLeft,
   Star, Plus, Shield, Eye, Mail, Trash2,
   ChevronDown, ChevronUp, Link as LinkIcon,
-  Pencil, X,
+  Pencil, X, LayoutGrid,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import {
@@ -72,7 +72,7 @@ function ProfileSkeleton() {
   )
 }
 
-// ── PERMISOS — labels y toggle ────────────────────────────────────────────────
+// ── Permisos ──────────────────────────────────────────────────────────────────
 const PERM_LABELS: Record<keyof CollaboratorPermissions, string> = {
   canViewListings:        'Ver propiedades',
   canCreateListings:      'Crear propiedades',
@@ -82,10 +82,9 @@ const PERM_LABELS: Record<keyof CollaboratorPermissions, string> = {
   canManageLeads:         'Gestionar clientes',
   canManageCollaborators: 'Gestionar colaboradores',
 }
-
 const PERM_KEYS = Object.keys(PERM_LABELS) as (keyof CollaboratorPermissions)[]
 
-// ── Invite Form ───────────────────────────────────────────────────────────────
+// ── InviteForm ────────────────────────────────────────────────────────────────
 function InviteForm({ onInvited }: { onInvited: (link: string) => void }) {
   const [email,   setEmail]   = useState('')
   const [loading, setLoading] = useState(false)
@@ -120,34 +119,24 @@ function InviteForm({ onInvited }: { onInvited: (link: string) => void }) {
         <Mail className="size-4 text-primary" />
         <h3 className="text-sm font-medium text-foreground">Invitar colaborador</h3>
       </div>
-
       <div>
         <label className="text-xs text-muted-foreground">Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleInvite()}
           placeholder="colaborador@email.com"
-          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-        />
+          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all" />
       </div>
-
-      {/* Toggle permisos */}
       <button onClick={() => setShowPerms(p => !p)}
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
         {showPerms ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
         Configurar permisos
       </button>
-
       {showPerms && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {PERM_KEYS.map(key => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
-              <div
-                onClick={() => setPerms(p => ({ ...p, [key]: !p[key] }))}
-                className={`relative flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${perms[key] ? 'bg-primary' : 'bg-muted'}`}
-              >
+              <div onClick={() => setPerms(p => ({ ...p, [key]: !p[key] }))}
+                className={`relative flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${perms[key] ? 'bg-primary' : 'bg-muted'}`}>
                 <span className={`absolute h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${perms[key] ? 'translate-x-4' : 'translate-x-1'}`} />
               </div>
               <span className="text-xs text-foreground">{PERM_LABELS[key]}</span>
@@ -155,13 +144,11 @@ function InviteForm({ onInvited }: { onInvited: (link: string) => void }) {
           ))}
         </div>
       )}
-
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
           <AlertCircle className="size-3.5 shrink-0" /> {error}
         </div>
       )}
-
       <button onClick={handleInvite} disabled={loading}
         className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all">
         {loading ? <><Loader2 className="size-4 animate-spin" /> Enviando...</> : <><Mail className="size-4" /> Generar invitación</>}
@@ -170,19 +157,15 @@ function InviteForm({ onInvited }: { onInvited: (link: string) => void }) {
   )
 }
 
-// ── Collaborator Row ──────────────────────────────────────────────────────────
-function CollaboratorRow({
-  collab,
-  onRemoved,
-  onUpdated,
-}: {
+// ── CollaboratorRow ───────────────────────────────────────────────────────────
+function CollaboratorRow({ collab, onRemoved, onUpdated }: {
   collab:    Collaborator
   onRemoved: (id: string) => void
   onUpdated: (id: string, perms: Partial<CollaboratorPermissions>) => void
 }) {
-  const [expanded,  setExpanded]  = useState(false)
-  const [removing,  setRemoving]  = useState(false)
-  const [saving,    setSaving]    = useState(false)
+  const [expanded,   setExpanded]   = useState(false)
+  const [removing,   setRemoving]   = useState(false)
+  const [saving,     setSaving]     = useState(false)
   const [localPerms, setLocalPerms] = useState<CollaboratorPermissions>({
     canViewListings:        collab.canViewListings,
     canCreateListings:      collab.canCreateListings,
@@ -193,328 +176,243 @@ function CollaboratorRow({
     canManageCollaborators: collab.canManageCollaborators,
   })
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     ACTIVE:  'bg-emerald-100 text-emerald-700',
     PENDING: 'bg-amber-100 text-amber-700',
     REMOVED: 'bg-muted text-muted-foreground',
   }
 
-  const handleSavePerms = async () => {
-    setSaving(true)
-    try {
-      await updateCollaboratorPermissions(collab.id, localPerms)
-      onUpdated(collab.id, localPerms)
-      setExpanded(false)
-    } catch { /* ignorar */ }
-    finally { setSaving(false) }
-  }
-
   const handleRemove = async () => {
-    if (!confirm(`¿Remover a ${collab.email} como colaborador?`)) return
     setRemoving(true)
     try {
       await removeCollaborator(collab.id)
       onRemoved(collab.id)
-    } catch { /* ignorar */ }
-    finally { setRemoving(false) }
+    } catch { setRemoving(false) }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await updateCollaboratorPermissions(collab.id, localPerms)
+      onUpdated(collab.id, localPerms)
+    } finally { setSaving(false) }
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-          {collab.email.charAt(0).toUpperCase()}
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 shrink-0">
+            <span className="text-xs font-medium text-primary">{(collab.email ?? 'U').charAt(0).toUpperCase()}</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{collab.email}</p>
+            <span className={`inline-flex text-xs px-1.5 py-0.5 rounded-full ${statusColors[collab.status] ?? ''}`}>{collab.status}</span>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{collab.email}</p>
-          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium mt-0.5 ${statusColors[collab.status]}`}>
-            {collab.status === 'ACTIVE' ? 'Activo' : collab.status === 'PENDING' ? 'Pendiente' : 'Removido'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => setExpanded(p => !p)}
-            className="flex size-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary transition-colors">
-            <Pencil className="size-3.5" />
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setExpanded(p => !p)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
+            {expanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
           </button>
-          <button onClick={handleRemove} disabled={removing}
-            className="flex size-7 items-center justify-center rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/5 disabled:opacity-60 transition-colors">
-            {removing ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+          <button onClick={handleRemove} disabled={removing} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+            {removing ? <Loader2 className="size-4 animate-spin text-destructive" /> : <Trash2 className="size-4 text-destructive" />}
           </button>
         </div>
       </div>
-
-      {/* Permisos expandibles */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="overflow-hidden border-t border-border"
-          >
-            <div className="px-4 py-3 space-y-3">
-              <p className="text-xs font-medium text-muted-foreground">Permisos</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {PERM_KEYS.map(key => (
-                  <label key={key} className="flex items-center gap-2 cursor-pointer">
-                    <div
-                      onClick={() => setLocalPerms(p => ({ ...p, [key]: !p[key] }))}
-                      className={`relative flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${localPerms[key] ? 'bg-primary' : 'bg-muted'}`}
-                    >
-                      <span className={`absolute h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${localPerms[key] ? 'translate-x-4' : 'translate-x-1'}`} />
-                    </div>
-                    <span className="text-xs text-foreground">{PERM_LABELS[key]}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button onClick={() => setExpanded(false)}
-                  className="flex-1 rounded-lg border border-border py-2 text-xs text-muted-foreground hover:bg-muted transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleSavePerms} disabled={saving}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-colors">
-                  {saving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {expanded && (
+        <div className="border-t border-border px-4 py-3 space-y-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {PERM_KEYS.map(key => (
+              <label key={key} className="flex items-center gap-2 cursor-pointer">
+                <div onClick={() => setLocalPerms(p => ({ ...p, [key]: !p[key] }))}
+                  className={`relative flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${localPerms[key] ? 'bg-primary' : 'bg-muted'}`}>
+                  <span className={`absolute h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${localPerms[key] ? 'translate-x-4' : 'translate-x-1'}`} />
+                </div>
+                <span className="text-xs text-foreground">{PERM_LABELS[key]}</span>
+              </label>
+            ))}
+          </div>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all">
+            {saving ? <><Loader2 className="size-3.5 animate-spin" /> Guardando...</> : <><Check className="size-3.5" /> Guardar permisos</>}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Collaborators View ────────────────────────────────────────────────────────
+// ── CollaboratorsView ─────────────────────────────────────────────────────────
 function CollaboratorsView({ onBack }: { onBack: () => void }) {
-  const [collabs,     setCollabs]     = useState<Collaborator[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [inviteLink,  setInviteLink]  = useState<string | null>(null)
+  const [collabs,    setCollabs]    = useState<Collaborator[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await listCollaborators()
       setCollabs(res.data)
-    } catch { /* ignorar */ }
-    finally { setLoading(false) }
+    } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const handleInvited = (link: string) => {
-    setInviteLink(link)
-    load()
-  }
-
-  const handleRemoved = (id: string) => {
-    setCollabs(prev => prev.filter(c => c.id !== id))
-  }
-
-  const handleUpdated = (id: string, perms: Partial<CollaboratorPermissions>) => {
-    setCollabs(prev => prev.map(c => c.id === id ? { ...c, ...perms } : c))
-  }
-
-  const active  = collabs.filter(c => c.status === 'ACTIVE')
-  const pending = collabs.filter(c => c.status === 'PENDING')
-
   return (
-    <div>
+    <div className="space-y-4">
       <BackButton onClick={onBack} />
-
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h2 className="font-serif text-xl text-foreground">Colaboradores</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {active.length} activo{active.length !== 1 ? 's' : ''} · {pending.length} pendiente{pending.length !== 1 ? 's' : ''}
-          </p>
+      <div className="flex items-center gap-2">
+        <Users className="size-5 text-primary" />
+        <h2 className="text-lg font-semibold text-foreground">Colaboradores</h2>
+      </div>
+      <InviteForm onInvited={link => { setInviteLink(link); load() }} />
+      {inviteLink && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+          <p className="text-xs font-medium text-primary flex items-center gap-1.5"><LinkIcon className="size-3.5" /> Link de invitación generado</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs bg-background rounded-lg px-3 py-2 border border-border truncate">{inviteLink}</code>
+            <CopyButton text={inviteLink} label="Copiar" />
+          </div>
         </div>
-      </div>
-
-      {/* Link generado */}
-      <AnimatePresence>
-        {inviteLink && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-2"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Check className="size-4 text-emerald-600" />
-                <p className="text-sm font-medium text-emerald-800">Invitación generada</p>
-              </div>
-              <button onClick={() => setInviteLink(null)}>
-                <X className="size-4 text-emerald-600 hover:text-emerald-800" />
-              </button>
-            </div>
-            <p className="text-xs text-emerald-700 break-all font-mono bg-emerald-100 rounded-lg px-3 py-2">
-              {inviteLink}
-            </p>
-            <CopyButton text={inviteLink} label="Copiar link" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Form de invitación */}
-      <InviteForm onInvited={handleInvited} />
-
-      {/* Lista */}
-      <div className="mt-5 space-y-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : collabs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-8 text-center">
-            <Users className="size-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Todavía no tenés colaboradores</p>
-          </div>
-        ) : (
-          <>
-            {active.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-1">Activos</p>
-                {active.map(c => (
-                  <CollaboratorRow key={c.id} collab={c} onRemoved={handleRemoved} onUpdated={handleUpdated} />
-                ))}
-              </div>
-            )}
-            {pending.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-1">Pendientes</p>
-                {pending.map(c => (
-                  <CollaboratorRow key={c.id} collab={c} onRemoved={handleRemoved} onUpdated={handleUpdated} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      )}
+      {loading ? (
+        <div className="space-y-2">{[1, 2].map(i => <div key={i} className="h-16 rounded-2xl bg-muted animate-pulse" />)}</div>
+      ) : collabs.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center">
+          <Users className="size-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No tenés colaboradores todavía</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {collabs.map(c => (
+            <CollaboratorRow key={c.id} collab={c}
+              onRemoved={id => setCollabs(prev => prev.filter(x => x.id !== id))}
+              onUpdated={(id, perms) => setCollabs(prev => prev.map(x => x.id === id ? { ...x, ...perms } : x))}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Role Selector ─────────────────────────────────────────────────────────────
+// ── RoleSelector ──────────────────────────────────────────────────────────────
 function RoleSelector({ currentIsOwner, currentIsAffiliate, onSelected, onBack }: {
   currentIsOwner: boolean; currentIsAffiliate: boolean; onSelected: () => void; onBack: () => void
 }) {
-  const { refreshProfile } = useAuth()
-  const [loading, setLoading] = useState<'owner' | 'affiliate' | null>(null)
+  const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
-  const handle = async (role: 'owner' | 'affiliate') => {
-    setLoading(role); setError(null)
-    try { await selectRole(role); await refreshProfile(); onSelected() }
-    catch (e: any) { setError(e.message ?? 'Error al seleccionar el rol') }
-    finally { setLoading(null) }
+  const handleSelect = async (role: 'owner' | 'affiliate') => {
+    setLoading(true); setError(null)
+    try {
+      await selectRole(role)
+      onSelected()
+    } catch (e: any) {
+      setError(getErrorMessage(e))
+    } finally { setLoading(false) }
   }
 
-  const cards = [
-    { role: 'owner' as const, icon: Building2, title: 'Propietario / Agencia',
-      description: 'Gestioná tu inmobiliaria, equipo y propiedades.', perks: ['Perfil de organización', 'Colaboradores', 'Estadísticas'],
-      accent: 'from-amber-500/10 to-orange-500/5 border-amber-200/50', disabled: currentIsOwner, disabledMsg: 'Ya sos Owner' },
-    { role: 'affiliate' as const, icon: Users, title: 'Afiliado',
-      description: 'Referí nuevas agencias y ganá comisiones.', perks: ['Código de referido', 'Dashboard de comisiones'],
-      accent: 'from-emerald-500/10 to-teal-500/5 border-emerald-200/50', disabled: currentIsAffiliate, disabledMsg: 'Ya sos Afiliado' },
-  ]
-
   return (
-    <div>
+    <div className="space-y-4">
       <BackButton onClick={onBack} />
-      <div className="mb-6 text-center">
-        <h2 className="font-serif text-2xl text-foreground">Activar rol</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Podés tener ambos roles al mismo tiempo.</p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {cards.map(({ role, icon: Icon, title, description, perks, accent, disabled, disabledMsg }) => (
-          <motion.button key={role} whileHover={disabled ? {} : { y: -2 }} whileTap={disabled ? {} : { scale: 0.98 }}
-            onClick={() => !disabled && handle(role)} disabled={!!loading || disabled}
-            className={`group relative flex flex-col items-start gap-4 overflow-hidden rounded-2xl border bg-gradient-to-br p-6 text-left transition-all ${accent} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            {disabled && <span className="absolute top-3 right-3 rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium">{disabledMsg}</span>}
-            <div className="flex size-11 items-center justify-center rounded-xl bg-white/60 backdrop-blur-sm shadow-sm">
-              {loading === role ? <Loader2 className="size-5 animate-spin text-primary" /> : <Icon className="size-5 text-foreground" />}
-            </div>
-            <div><h3 className="text-base font-semibold text-foreground">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>
-            <ul className="flex flex-col gap-1.5">{perks.map(p => <li key={p} className="flex items-center gap-2 text-xs text-foreground/80"><Check className="size-3.5 shrink-0 text-primary" /> {p}</li>)}</ul>
-            {!disabled && <div className="mt-auto flex items-center gap-1 text-xs font-medium text-primary">Activar <ArrowRight className="size-3.5" /></div>}
-          </motion.button>
-        ))}
-      </div>
-      {error && <p className="mt-4 text-center text-sm text-destructive">{error}</p>}
+      <h2 className="text-lg font-semibold text-foreground">Elegí tu rol</h2>
+      {!currentIsOwner && (
+        <button onClick={() => handleSelect('owner')} disabled={loading}
+          className="flex w-full items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-60">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-amber-100 shrink-0"><Building2 className="size-5 text-amber-600" /></div>
+          <div>
+            <p className="font-medium text-foreground">Owner</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Creá y gestioná tu propia organización</p>
+          </div>
+          {loading ? <Loader2 className="size-4 animate-spin ml-auto" /> : <ArrowRight className="size-4 text-muted-foreground ml-auto" />}
+        </button>
+      )}
+      {!currentIsAffiliate && (
+        <button onClick={() => handleSelect('affiliate')} disabled={loading}
+          className="flex w-full items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-60">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-100 shrink-0"><Star className="size-5 text-emerald-600" /></div>
+          <div>
+            <p className="font-medium text-foreground">Afiliado</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Referí usuarios y ganá comisiones</p>
+          </div>
+          {loading ? <Loader2 className="size-4 animate-spin ml-auto" /> : <ArrowRight className="size-4 text-muted-foreground ml-auto" />}
+        </button>
+      )}
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <AlertCircle className="size-3.5" /> {error}
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Org Form ──────────────────────────────────────────────────────────────────
+// ── OrgForm ───────────────────────────────────────────────────────────────────
 function OrgForm({ org, onBack, onSaved }: { org: Organization | null; onBack: () => void; onSaved: () => void }) {
-  const { refreshProfile } = useAuth()
-  const [saving, setSaving] = useState(false)
-  const [error,  setError]  = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [form, setForm] = useState({
-    name: org?.name ?? '', description: org?.description ?? '',
-    logoUrl: org?.logoUrl ?? '', website: org?.website ?? '',
-    phone: org?.phone ?? '', address: org?.address ?? '',
+  const [form,    setForm]    = useState({
+    name:        org?.name        ?? '',
+    description: org?.description ?? '',
+    website:     org?.website     ?? '',
+    phone:       org?.phone       ?? '',
+    address:     org?.address     ?? '',
   })
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
 
   const handleSave = async () => {
-    setSaving(true); setError(null); setSuccess(false)
+    setLoading(true); setError(null)
     try {
-      await updateMyOrganization(Object.fromEntries(Object.entries(form).filter(([, v]) => v !== '')))
-      await refreshProfile(); setSuccess(true)
-      setTimeout(() => { setSuccess(false); onSaved() }, 1200)
-    } catch (err) { setError(getErrorMessage(err)) }
-    finally { setSaving(false) }
+      await updateMyOrganization(form)
+      onSaved()
+    } catch (e: any) {
+      setError(getErrorMessage(e))
+    } finally { setLoading(false) }
   }
 
-  const fields = [
-    { key: 'name' as const, label: 'Nombre *', type: 'text' },
-    { key: 'description' as const, label: 'Descripción', type: 'text' },
-    { key: 'website' as const, label: 'Sitio web', type: 'url' },
-    { key: 'phone' as const, label: 'Teléfono', type: 'tel' },
-    { key: 'address' as const, label: 'Dirección', type: 'text' },
-    { key: 'logoUrl' as const, label: 'URL del logo', type: 'url' },
-  ]
-
   return (
-    <div>
+    <div className="space-y-4">
       <BackButton onClick={onBack} />
-      <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-        <div className="flex items-center gap-2"><Building2 className="size-5 text-primary" /><h2 className="font-medium text-foreground">{org?.name ? 'Editar organización' : 'Configurá tu inmobiliaria'}</h2></div>
-        {fields.map(({ key, label, type }) => (
+      <div className="flex items-center gap-2"><Pencil className="size-4 text-primary" /><h2 className="text-lg font-semibold">Mi organización</h2></div>
+      <div className="space-y-3">
+        {([
+          { key: 'name',        label: 'Nombre',      placeholder: 'Inmobiliaria XYZ' },
+          { key: 'description', label: 'Descripción', placeholder: 'Breve descripción' },
+          { key: 'website',     label: 'Sitio web',   placeholder: 'https://...' },
+          { key: 'phone',       label: 'Teléfono',    placeholder: '+54 11 ...' },
+          { key: 'address',     label: 'Dirección',   placeholder: 'Calle 123, Ciudad' },
+        ] as const).map(({ key, label, placeholder }) => (
           <div key={key}>
-            <label className="text-xs font-medium text-muted-foreground">{label}</label>
-            <input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+            <label className="text-xs text-muted-foreground">{label}</label>
+            <input value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+              placeholder={placeholder}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all" />
           </div>
         ))}
-        {error && <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="size-4 shrink-0" /> {error}</div>}
-        {success && <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700"><Check className="size-4" /> Guardado</div>}
-        <div className="flex gap-3 pt-1">
-          <button onClick={onBack} disabled={saving} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted-foreground hover:bg-muted disabled:opacity-60 transition-all">Cancelar</button>
-          <button onClick={handleSave} disabled={saving || success}
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all">
-            {saving ? <><Loader2 className="size-4 animate-spin" /> Guardando...</> : success ? <><Check className="size-4" /> Guardado</> : <><Check className="size-4" /> Guardar</>}
-          </button>
-        </div>
       </div>
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <AlertCircle className="size-3.5" /> {error}
+        </div>
+      )}
+      <button onClick={handleSave} disabled={loading}
+        className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all">
+        {loading ? <><Loader2 className="size-4 animate-spin" /> Guardando...</> : <><Check className="size-4" /> Guardar cambios</>}
+      </button>
     </div>
   )
 }
 
-// ── Tenant Card ───────────────────────────────────────────────────────────────
+// ── TenantCard ────────────────────────────────────────────────────────────────
 function TenantCard({ tenant }: { tenant: Tenant }) {
   const org = tenant.organization
   const activePerms = Object.entries(tenant.permissions).filter(([, v]) => v).map(([k]) => PERM_LABELS[k as keyof CollaboratorPermissions]).filter(Boolean)
   return (
     <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
       <div className="flex items-start gap-3">
-        {org.logoUrl ? <img src={org.logoUrl} alt={org.name ?? ''} className="size-10 rounded-xl border border-border object-cover shrink-0" /> :
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 shrink-0"><Building2 className="size-5 text-primary" /></div>}
+        {org.logoUrl
+          ? <img src={org.logoUrl} alt={org.name ?? ''} className="size-10 rounded-xl border border-border object-cover shrink-0" />
+          : <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 shrink-0"><Building2 className="size-5 text-primary" /></div>}
         <div className="flex-1 min-w-0">
           <p className="font-medium text-foreground truncate">{org.name ?? 'Sin nombre'}</p>
           <div className="flex items-center gap-1 mt-0.5"><Shield className="size-3 text-muted-foreground" /><span className="text-xs text-muted-foreground">Colaborador</span></div>
@@ -542,6 +440,11 @@ function Overview({ onAddRole, onEditOrg, onCollaborators }: {
   const noRole         = !profile.isOwner && !profile.isAffiliate
   const canAddRole     = !profile.isOwner || !profile.isAffiliate
   const collaborations = getCollaboratorTenants(profile)
+
+  const { state: ssoState, ssoError, openDashboard } = useDashboardSSO(
+    () => firebaseUser?.getIdToken() ?? Promise.resolve(null),
+  )
+  const canAccessDashboard = profile.isOwner || collaborations.length > 0
 
   return (
     <div className="space-y-4">
@@ -592,8 +495,6 @@ function Overview({ onAddRole, onEditOrg, onCollaborators }: {
               ))}
             </div>
           ) : <p className="text-xs text-muted-foreground italic">Completá los datos de tu inmobiliaria</p>}
-
-          {/* Botón colaboradores */}
           <button onClick={onCollaborators}
             className="flex w-full items-center justify-between rounded-xl border border-border bg-secondary/30 px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-all">
             <div className="flex items-center gap-2"><Users className="size-4 text-primary" /> Gestionar colaboradores</div>
@@ -602,7 +503,7 @@ function Overview({ onAddRole, onEditOrg, onCollaborators }: {
         </div>
       )}
 
-      {/* Colaboraciones en otras orgs */}
+      {/* Colaboraciones */}
       {collaborations.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-1">Organizaciones donde colaborás</p>
@@ -626,6 +527,29 @@ function Overview({ onAddRole, onEditOrg, onCollaborators }: {
         <button onClick={onAddRole} className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-all">
           <Plus className="size-4" />{!profile.isOwner ? 'Activar rol Owner' : 'Activar rol Afiliado'}
         </button>
+      )}
+
+      {/* Botón SSO — solo para owners y colaboradores */}
+      {canAccessDashboard && (
+        <button
+          onClick={openDashboard}
+          disabled={ssoState === 'loading' || ssoState === 'success'}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all"
+        >
+          {ssoState === 'loading' && (
+            <><Loader2 className="size-4 animate-spin" /> Conectando...</>
+          )}
+          {ssoState === 'success' && (
+            <><Check className="size-4" /> Redirigiendo...</>
+          )}
+          {(ssoState === 'idle' || ssoState === 'error') && (
+            <><LayoutGrid className="size-4" /> Ir al Dashboard</>
+          )}
+        </button>
+      )}
+
+      {ssoState === 'error' && ssoError && (
+        <p className="text-center text-xs text-destructive">{ssoError}</p>
       )}
 
       <button onClick={async () => { await logout(); router.push('/') }}
@@ -654,10 +578,10 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-2xl px-4 py-8">
         <AnimatePresence mode="wait">
           <motion.div key={view} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.15 }}>
-            {view === 'overview'       && <Overview onAddRole={() => setView('add-role')} onEditOrg={() => setView('edit-org')} onCollaborators={() => setView('collaborators')} />}
-            {view === 'add-role'       && <RoleSelector currentIsOwner={profile.isOwner} currentIsAffiliate={profile.isAffiliate} onSelected={() => setView('overview')} onBack={() => setView('overview')} />}
-            {view === 'edit-org'       && <OrgForm org={profile.organization ?? null} onBack={() => setView('overview')} onSaved={() => setView('overview')} />}
-            {view === 'collaborators'  && <CollaboratorsView onBack={() => setView('overview')} />}
+            {view === 'overview'      && <Overview onAddRole={() => setView('add-role')} onEditOrg={() => setView('edit-org')} onCollaborators={() => setView('collaborators')} />}
+            {view === 'add-role'      && <RoleSelector currentIsOwner={profile.isOwner} currentIsAffiliate={profile.isAffiliate} onSelected={() => setView('overview')} onBack={() => setView('overview')} />}
+            {view === 'edit-org'      && <OrgForm org={profile.organization ?? null} onBack={() => setView('overview')} onSaved={() => setView('overview')} />}
+            {view === 'collaborators' && <CollaboratorsView onBack={() => setView('overview')} />}
           </motion.div>
         </AnimatePresence>
       </div>
