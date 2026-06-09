@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Building2, Users, Check, Loader2, LogOut,
+  Building2, Users, Check, Loader2, LogOut, LayoutGrid,
   ArrowRight, Copy, AlertCircle, ChevronLeft,
   Star, Plus, Shield, Eye, Mail, Trash2,
   ChevronDown, ChevronUp, Link as LinkIcon,
@@ -18,6 +18,7 @@ import {
 } from '@/lib/api'
 import { getErrorMessage } from '@/lib/errors'
 import { getCollaboratorTenants } from '@/lib/types'
+import { useDashboardSSO } from '@/hooks/use-dashboard-sso'
 import type { Organization, Tenant, Collaborator, CollaboratorPermissions } from '@/lib/types'
 
 type View = 'overview' | 'add-role' | 'edit-org' | 'collaborators'
