@@ -3,12 +3,10 @@
 
 import { useState, useCallback } from 'react'
 
-// URL del dashboard-back (para hacer firebase-sso)
 const DASHBOARD_API_URL: string =
   (process.env.NEXT_PUBLIC_DASHBOARD_API_URL ?? 'http://localhost:3001/api/v1')
-    .replace(/\/+$/, '') // quitar trailing slash
+    .replace(/\/+$/, '')
 
-// URL del dashboard-front (para redirigir al usuario)
 const DASHBOARD_FRONT_URL: string =
   (process.env.NEXT_PUBLIC_DASHBOARD_FRONT_URL ?? 'http://localhost:3002')
     .replace(/\/+$/, '')
@@ -26,17 +24,16 @@ export function useDashboardSSO(
     setSsoError(null)
 
     try {
-      // 1. Obtener Firebase ID Token del usuario autenticado en real-front
       const firebaseToken = await getIdToken()
       if (!firebaseToken) throw new Error('No se pudo obtener el token de sesión')
 
-      // 2. Intercambiar Firebase token por JWT del dashboard-back
-      //    El endpoint /auth/firebase-sso verifica el token Firebase con Admin SDK,
-      //    crea/actualiza el usuario en la DB del dashboard-back y devuelve un JWT.
+      // credentials:'include' es OBLIGATORIO para que el browser
+      // acepte y guarde el Set-Cookie HttpOnly de la respuesta
       const res = await fetch(`${DASHBOARD_API_URL}/auth/firebase-sso`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ firebaseIdToken: firebaseToken }),
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ firebaseIdToken: firebaseToken }),
       })
 
       if (!res.ok) {
@@ -44,33 +41,12 @@ export function useDashboardSSO(
         throw new Error(body.message ?? `Error del servidor: ${res.status}`)
       }
 
-      const json = await res.json() as {
-        data?: { accessToken: string; refreshToken: string; user?: unknown }
-        accessToken?: string
-        refreshToken?: string
-      }
-
-      // Normalizar respuesta: puede venir con o sin wrapper { data: ... }
-      const tokens = json.data ?? {
-        accessToken:  json.accessToken,
-        refreshToken: json.refreshToken,
-      }
-
-      if (!tokens.accessToken || !tokens.refreshToken) {
-        throw new Error('El servidor no devolvió tokens válidos')
-      }
-
       setState('success')
 
-      // 3. Redirigir al dashboard-front con el JWT en la URL.
-      //    La página /auth/sso lo guarda en localStorage y redirige a /dashboard.
-      //    El token va en query param — es temporal (sesión), no un secreto long-lived.
-      const ssoUrl = new URL(`${DASHBOARD_FRONT_URL}/auth/sso`)
-      ssoUrl.searchParams.set('token',   tokens.accessToken)
-      ssoUrl.searchParams.set('refresh', tokens.refreshToken)
-
+      // La cookie ya fue seteada por el backend en este dominio.
+      // Redirigir al dashboard-front — la cookie viaja con el browser.
       setTimeout(() => {
-        window.location.href = ssoUrl.toString()
+        window.location.href = `${DASHBOARD_FRONT_URL}/auth/sso`
       }, 300)
 
     } catch (e: unknown) {
