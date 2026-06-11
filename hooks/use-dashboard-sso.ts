@@ -28,7 +28,7 @@ export function useDashboardSSO(
       if (!firebaseToken) throw new Error('No se pudo obtener el token de sesión')
 
       // credentials:'include' es OBLIGATORIO para que el browser
-      // acepte y guarde el Set-Cookie HttpOnly de la respuesta
+      // guarde el Set-Cookie HttpOnly que devuelve el backend
       const res = await fetch(`${DASHBOARD_API_URL}/auth/firebase-sso`, {
         method:      'POST',
         credentials: 'include',
@@ -43,8 +43,7 @@ export function useDashboardSSO(
 
       setState('success')
 
-      // La cookie ya fue seteada por el backend en este dominio.
-      // Redirigir al dashboard-front — la cookie viaja con el browser.
+      // Redirigir al dashboard-front — la cookie viaja con el browser
       setTimeout(() => {
         window.location.href = `${DASHBOARD_FRONT_URL}/auth/sso`
       }, 300)
