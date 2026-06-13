@@ -8,7 +8,7 @@ import {
   ArrowRight, Copy, AlertCircle, ChevronLeft,
   Star, Plus, Shield, Eye, Mail, Trash2,
   ChevronDown, ChevronUp, Link as LinkIcon,
-  Pencil, X, LayoutGrid,
+  Pencil, X, LayoutGrid, Settings,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import {
@@ -495,6 +495,11 @@ function Overview({ onAddRole, onEditOrg, onCollaborators }: {
               ))}
             </div>
           ) : <p className="text-xs text-muted-foreground italic">Completá los datos de tu inmobiliaria</p>}
+          <button onClick={() => router.push('/profile/config')}
+            className="flex w-full items-center justify-between rounded-xl border border-border bg-secondary/30 px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-all">
+            <div className="flex items-center gap-2"><Settings className="size-4 text-primary" /> Configuración de la organización</div>
+            <ArrowRight className="size-4 text-muted-foreground" />
+          </button>
           <button onClick={onCollaborators}
             className="flex w-full items-center justify-between rounded-xl border border-border bg-secondary/30 px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-all">
             <div className="flex items-center gap-2"><Users className="size-4 text-primary" /> Gestionar colaboradores</div>
