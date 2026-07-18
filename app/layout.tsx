@@ -1,3 +1,4 @@
+import { TrpcProvider } from '@/lib/trpc/provider';
 import type { Metadata, Viewport } from 'next'
 import { DM_Sans, DM_Serif_Display } from 'next/font/google'
 
@@ -28,7 +29,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${dmSans.variable} ${dmSerif.variable}`}>
       <body className="font-sans antialiased" suppressHydrationWarning>
         <AuthProvider>
-          {children}
+          <TrpcProvider>{children}</TrpcProvider>
         </AuthProvider>
         <Toaster />
 
