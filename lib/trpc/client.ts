@@ -2,9 +2,9 @@
 
 import { createTRPCReact } from '@trpc/react-query';
 import { httpBatchLink }   from '@trpc/client';
+import type { AnyRouter }  from '@trpc/server';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const trpc = createTRPCReact<any>();
+export const trpc = createTRPCReact<AnyRouter>();
 
 export function createTrpcClient(getToken: () => Promise<string | null>) {
   return trpc.createClient({
