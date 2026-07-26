@@ -10,7 +10,7 @@ export function CtaBand() {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        transition={{ type: "spring" as const, stiffness: 300, damping: 30 }}
         className="mx-auto flex max-w-3xl flex-col items-center px-4 text-center lg:px-8"
       >
         <h2 className="font-serif text-3xl text-background text-balance md:text-4xl lg:text-5xl">

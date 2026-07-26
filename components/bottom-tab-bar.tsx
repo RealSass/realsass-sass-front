@@ -17,7 +17,7 @@ export function BottomTabBar() {
     <motion.nav
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30, delay: 0.4 }}
+      transition={{ type: "spring" as const, stiffness: 300, damping: 30, delay: 0.4 }}
       className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 md:hidden"
       aria-label="Mobile navigation"
     >
@@ -39,7 +39,7 @@ export function BottomTabBar() {
                 <motion.div
                   layoutId="activeTab"
                   className="absolute inset-0 rounded-xl bg-primary"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  transition={{ type: "spring" as const, stiffness: 400, damping: 30 }}
                 />
               )}
               <tab.icon

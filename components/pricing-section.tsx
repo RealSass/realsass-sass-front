@@ -65,7 +65,7 @@ const item = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { type: "spring", stiffness: 300, damping: 30 },
+    transition: { type: "spring" as const, stiffness: 300, damping: 30 },
   },
 }
 
@@ -78,7 +78,7 @@ export function PricingSection() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          transition={{ type: "spring" as const, stiffness: 300, damping: 30 }}
           className="mx-auto max-w-2xl text-center"
         >
           <span className="text-xs font-semibold tracking-widest text-primary uppercase">Pricing</span>
