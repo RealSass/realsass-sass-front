@@ -3,8 +3,8 @@
 
 import { useState, useCallback } from 'react'
 
-const DASHBOARD_API_URL: string =
-  (process.env.NEXT_PUBLIC_DASHBOARD_API_URL ?? 'http://localhost:3001/api/v1')
+const SASS_BACK_URL: string =
+  (process.env.NEXT_PUBLIC_SASS_BACK_URL ?? 'http://localhost:3004')
     .replace(/\/+$/, '')
 
 const DASHBOARD_FRONT_URL: string =
@@ -27,13 +27,11 @@ export function useDashboardSSO(
       const firebaseToken = await getIdToken()
       if (!firebaseToken) throw new Error('No se pudo obtener el token de sesión')
 
-      // credentials:'include' es OBLIGATORIO para que el browser
-      // guarde el Set-Cookie HttpOnly que devuelve el backend
-      const res = await fetch(`${DASHBOARD_API_URL}/auth/firebase-sso`, {
-        method:      'POST',
-        credentials: 'include',
-        headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({ firebaseIdToken: firebaseToken }),
+      // 1. Mandar el idToken al sass-back para obtener un customToken
+      const res = await fetch(`${SASS_BACK_URL}/api/v1/auth/firebase-sso`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ firebaseIdToken: firebaseToken }),
       })
 
       if (!res.ok) {
@@ -41,11 +39,15 @@ export function useDashboardSSO(
         throw new Error(body.message ?? `Error del servidor: ${res.status}`)
       }
 
+      const data = await res.json() as { customToken: string }
+
       setState('success')
 
-      // Redirigir al dashboard-front — la cookie viaja con el browser
+      // 2. Redirigir al dashboard-front con el customToken en la URL
+      // El dashboard-front lo lee en /auth/sso y hace signInWithCustomToken
       setTimeout(() => {
-        window.location.href = `${DASHBOARD_FRONT_URL}/auth/sso`
+        window.location.href =
+          `${DASHBOARD_FRONT_URL}/auth/sso?token=${encodeURIComponent(data.customToken)}`
       }, 300)
 
     } catch (e: unknown) {
