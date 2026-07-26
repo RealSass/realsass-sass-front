@@ -1,20 +1,10 @@
-/**
- * lib/trpc/client.ts
- *
- * Cliente tRPC para realsass-sass-front (owner panel).
- * Conecta con realsass-sass-back en /api/v1/trpc.
- *
- * Este front no usa x-organization-id como tenant header porque
- * el owner accede a su propia org — el backend la resuelve por firebaseUid.
- * Solo se pasa el token de Firebase en Authorization.
- */
 'use client';
 
 import { createTRPCReact } from '@trpc/react-query';
 import { httpBatchLink }   from '@trpc/client';
-import type { AppRouter } from './router-type';
 
-export const trpc = createTRPCReact<AppRouter>();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const trpc = createTRPCReact<any>();
 
 export function createTrpcClient(getToken: () => Promise<string | null>) {
   return trpc.createClient({
