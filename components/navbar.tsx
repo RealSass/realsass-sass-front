@@ -39,7 +39,7 @@ export function Navbar() {
       <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        transition={{ type: 'spring' as const, stiffness: 300, damping: 30 }}
         className="fixed top-0 right-0 left-0 z-50 border-b border-border/40 backdrop-blur-xl"
         style={{ backgroundColor: 'rgba(245, 240, 235, 0.8)' }}
       >
