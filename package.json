@@ -48,6 +48,7 @@
     "clsx": "^2.1.1",
     "date-fns": "4.1.0",
     "firebase": "^12.14.0",
+    "framer-motion": "^12.42.2",
     "lucide-react": "^0.564.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
@@ -58,6 +59,7 @@
     "recharts": "2.15.0",
     "sonner": "^1.7.1",
     "tailwind-merge": "^3.3.1",
+    "vaul": "^1.1.2",
     "zod": "3.25.76",
     "zustand": "^5.0.0"
   },
