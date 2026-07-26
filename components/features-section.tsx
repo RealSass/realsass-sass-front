@@ -48,11 +48,11 @@ const container = {
 }
 
 const item = {
-  hidden: { opacity: 0, y: 30 },
+  hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { type: "spring", stiffness: 300, damping: 30 },
+    transition: { type: 'spring' as const, stiffness: 100, damping: 15 },
   },
 }
 
