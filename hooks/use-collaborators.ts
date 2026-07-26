@@ -1,46 +1,50 @@
-/**
- * hooks/use-collaborators.ts
- *
- * Reemplaza las llamadas manuales a lib/api:
- *   listCollaborators()              → trpc.collaborators.list
- *   inviteCollaborator(uid, dto)     → trpc.collaborators.invite
- *   removeCollaborator(uid, id)      → trpc.collaborators.remove
- *   updateCollaboratorPermissions()  → trpc.collaborators.update
- *
- * Uso en componentes:
- *   const { data, isLoading } = useCollaborators();
- *   const invite = useInviteCollaborator();
- *   await invite.mutateAsync({ email, canViewListings: true, ... });
- */
-import { trpc } from '@/lib/trpc/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  listCollaborators,
+  inviteCollaborator,
+  removeCollaborator,
+  updateCollaboratorPermissions,
+} from '@/lib/api';
+import type { CollaboratorPermissions } from '@/lib/types';
 
 export function useCollaborators() {
-  return trpc.collaborators.list.useQuery(undefined, {
+  return useQuery({
+    queryKey:  ['collaborators'],
+    queryFn:   () => listCollaborators().then(r => r.data),
     staleTime: 30_000,
   });
 }
 
 export function useInviteCollaborator() {
-  const utils = trpc.useUtils();
-  return trpc.collaborators.invite.useMutation({
-    onSuccess: () => void utils.collaborators.list.invalidate(),
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: inviteCollaborator,
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['collaborators'] }),
   });
 }
 
 export function useRemoveCollaborator() {
-  const utils = trpc.useUtils();
-  return trpc.collaborators.remove.useMutation({
-    onSuccess: () => void utils.collaborators.list.invalidate(),
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => removeCollaborator(id),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['collaborators'] }),
   });
 }
 
 export function useUpdateCollaboratorPermissions() {
-  const utils = trpc.useUtils();
-  return trpc.collaborators.update.useMutation({
-    onSuccess: () => void utils.collaborators.list.invalidate(),
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, perms }: { id: string; perms: Partial<CollaboratorPermissions> }) =>
+      updateCollaboratorPermissions(id, perms),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collaborators'] }),
   });
 }
 
 export function useAcceptInvitation() {
-  return trpc.collaborators.acceptInvitation.useMutation();
+  return useMutation({
+    mutationFn: (token: string) => 
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/collaborators/invitations/${token}/accept`, {
+        method: 'POST',
+      }).then(r => r.json()),
+  });
 }
